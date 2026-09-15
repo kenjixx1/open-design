@@ -3,7 +3,10 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 let desktopAuthSecret: Buffer | null = null;
 let desktopAuthEverRegistered = process.env.OD_REQUIRE_DESKTOP_AUTH === '1';
 export const consumedImportNonces = new Map<string, number>();
-const DESKTOP_IMPORT_TOKEN_TTL_MS = 60_000;
+// 30 minutes, not 60 seconds: the Home working-directory chip mints the token
+// when the folder is picked, and the user then writes the first prompt before
+// the project exists. The token stays single-use (nonce) and folder-bound.
+const DESKTOP_IMPORT_TOKEN_TTL_MS = 30 * 60_000;
 const DESKTOP_IMPORT_TOKEN_FIELD_SEP = '~';
 
 export function setDesktopAuthSecret(secret: Buffer | null): void {

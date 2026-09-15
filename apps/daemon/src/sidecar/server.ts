@@ -41,7 +41,10 @@ export function withCurrentDesktopAuthGate(snapshot: DaemonStatusSnapshot): Daem
 
 const DAEMON_PORT_ENV = SIDECAR_ENV.DAEMON_PORT;
 const WEB_PORT_ENV = SIDECAR_ENV.WEB_PORT;
-const DESKTOP_IMPORT_TOKEN_TTL_MS = 60_000;
+// 30 minutes, not 60 seconds: the Home working-directory chip mints the token
+// when the folder is picked, and the user then writes the first prompt before
+// the project exists. The token stays single-use (nonce) and folder-bound.
+const DESKTOP_IMPORT_TOKEN_TTL_MS = 30 * 60_000;
 
 export type DaemonSidecarHandle = {
   invoke(action: string, input: unknown): Promise<unknown>;

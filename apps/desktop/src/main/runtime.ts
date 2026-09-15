@@ -482,7 +482,10 @@ export type DesktopRuntimeOptions = {
 };
 
 const DESKTOP_IMPORT_TOKEN_HEADER = "x-od-desktop-import-token";
-const DESKTOP_IMPORT_TOKEN_TTL_MS = 60_000;
+// 30 minutes, not 60 seconds: the Home working-directory chip mints the token
+// when the folder is picked, and the user then writes the first prompt before
+// the project exists. The token stays single-use (nonce) and folder-bound.
+const DESKTOP_IMPORT_TOKEN_TTL_MS = 30 * 60_000;
 
 export function mintImportToken(secret: Buffer, baseDir: string): string {
   const nonce = randomBytes(16).toString("base64url");

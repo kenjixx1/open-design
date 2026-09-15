@@ -20,6 +20,7 @@ function requestInputFacts(
       access: 'out_of_band',
     },
     attachments: [],
+    linkedDirectoryTransport: null,
     comments: { count: 0 },
     workspace: {
       project: { reference: 'workspace:project', access: 'out_of_band' },
@@ -29,6 +30,13 @@ function requestInputFacts(
     ...overrides,
   };
 }
+
+const LINKED_DIRECTORY_TRANSPORT = {
+  scheme: 'env',
+  environmentVariable: 'OD_LINKED_DIRS',
+  format: 'json-object-keyed-by-reference',
+  access: 'out_of_band',
+} as const;
 
 describe('OD Next task input facts', () => {
   it.each<OdNextProductionTaskTypeV1>([
@@ -71,6 +79,7 @@ describe('OD Next task input facts', () => {
         bytes: 8,
         sha256: 'a'.repeat(64),
       }],
+      linkedDirectoryTransport: LINKED_DIRECTORY_TRANSPORT,
       comments: { count: 0 },
       workspace: {
         project: { reference: 'workspace:project', access: 'out_of_band' },
@@ -81,6 +90,7 @@ describe('OD Next task input facts', () => {
     expect(serialized).toContain('task-input:attachments/attachment-001.png');
     expect(serialized).toContain('OD_TASK_INPUT_DIR');
     expect(serialized).toContain('linked-dir:1');
+    expect(serialized).toContain('OD_LINKED_DIRS');
     expect(serialized).not.toContain('oauth');
     expect(serialized).not.toContain('/private/');
   });
@@ -95,6 +105,7 @@ describe('OD Next task input facts', () => {
     ['a comment', { comments: { count: 1 } }],
     ['an MCP server', { mcp: { serverCount: 1, registration: 'out_of_band' } }],
     ['a linked directory', {
+      linkedDirectoryTransport: LINKED_DIRECTORY_TRANSPORT,
       workspace: {
         project: { reference: 'workspace:project', access: 'out_of_band' },
         linkedDirectories: [{ reference: 'linked-dir:1', access: 'out_of_band' }],
@@ -115,5 +126,38 @@ describe('OD Next task input facts', () => {
     const serialized = serializeOdNextWorkspaceInputFactsV1(requestInputFacts(overrides));
     expect(serialized).not.toBe('');
     expect(serialized).toContain(OD_NEXT_REQUEST_INPUT_FACTS_SCHEMA_V1);
+  });
+
+  it('tells the model how linked-dir aliases resolve, without any live path', () => {
+    // The alias alone is a dead end: the model can see `linked-dir:1` but has
+    // no way to open it. The transport block names the env variable that
+    // maps aliases to directories; the directories themselves stay out.
+    const serialized = serializeOdNextWorkspaceInputFactsV1(requestInputFacts({
+      linkedDirectoryTransport: LINKED_DIRECTORY_TRANSPORT,
+      workspace: {
+        project: { reference: 'workspace:project', access: 'out_of_band' },
+        linkedDirectories: [
+          { reference: 'linked-dir:1', access: 'out_of_band' },
+          { reference: 'linked-dir:2', access: 'out_of_band' },
+        ],
+      },
+    }));
+    expect(serialized).toContain('"linkedDirectoryTransport":{');
+    expect(serialized).toContain('"environmentVariable":"OD_LINKED_DIRS"');
+    expect(serialized).toContain('"format":"json-object-keyed-by-reference"');
+    expect(serialized).toContain('"scheme":"env"');
+    expect(serialized).toContain('linked-dir:2');
+    // No absolute path of any platform may leak into the prompt text.
+    expect(serialized).not.toMatch(/"\/[^"]*"/);
+    expect(serialized).not.toMatch(/"[A-Za-z]:\\/);
+  });
+
+  it('omits the linked directory transport block when it is null', () => {
+    const serialized = serializeOdNextWorkspaceInputFactsV1(requestInputFacts({
+      comments: { count: 1 },
+    }));
+    expect(serialized).not.toBe('');
+    expect(serialized).not.toContain('linkedDirectoryTransport');
+    expect(serialized).not.toContain('OD_LINKED_DIRS');
   });
 });

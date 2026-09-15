@@ -51,6 +51,21 @@ export interface OdNextRequestInputFactsV1 {
     access: 'out_of_band';
   };
   attachments: OdNextAttachmentFactV1[];
+  /**
+   * How `linked-dir:N` aliases resolve to real directories. Sibling of
+   * `attachmentTransport`: the prompt names only aliases, and the daemon
+   * hands the agent an `OD_LINKED_DIRS` JSON object keyed by those aliases,
+   * so the live absolute paths never enter the Bundle text.
+   *
+   * `null` when the request carries no linked directory; snapshots written
+   * before this field existed load as `null` too.
+   */
+  linkedDirectoryTransport: {
+    scheme: 'env';
+    environmentVariable: 'OD_LINKED_DIRS';
+    format: 'json-object-keyed-by-reference';
+    access: 'out_of_band';
+  } | null;
   comments: { count: number };
   workspace: {
     project: { reference: 'workspace:project'; access: 'out_of_band' } | null;
@@ -144,5 +159,8 @@ export function serializeOdNextWorkspaceInputFactsV1(
     comments: value.comments,
     mcp: value.mcp,
     workspace: value.workspace,
+    ...(value.linkedDirectoryTransport
+      ? { linkedDirectoryTransport: value.linkedDirectoryTransport }
+      : {}),
   });
 }

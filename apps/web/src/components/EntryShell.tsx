@@ -1494,15 +1494,20 @@ export function EntryShell({
       payload.pluginTitle && payload.pluginTitle.trim().length > 0
         ? payload.pluginTitle.trim()
         : fallbackName;
+    // The Home working-directory picker names the folder the project lives
+    // in: the agent starts there and Design Files read from there. The
+    // daemon flips `metadata.baseDir` through the existing
+    // `replaceProjectWorkingDir` handoff in App.tsx, the same path the
+    // New-project modal's "Local storage" button takes. Folders from the
+    // "+" menu's local-code picker stay read-only `linkedDirs`.
+    const workingDir = payload.workingDir?.trim() || null;
     const linkedDirs = Array.from(
       new Set(
-        [
-          ...(payload.workingDir ? [payload.workingDir] : []),
-          ...(payload.linkedDirs ?? []),
-        ].map((dir) => dir.trim()).filter(Boolean),
+        (payload.linkedDirs ?? []).map((dir) => dir.trim()).filter(Boolean),
       ),
     );
     const metadata: ProjectMetadata = {
+      ...(workingDir ? { userWorkingDir: workingDir } : {}),
       ...(payload.projectMetadata ?? {}),
       kind: payload.projectKind ?? payload.projectMetadata?.kind ?? 'prototype',
       nameSource: 'prompt',
@@ -1515,12 +1520,6 @@ export function EntryShell({
       ...(payload.contextConnectors && payload.contextConnectors.length > 0
         ? { contextConnectors: payload.contextConnectors }
         : {}),
-      // The Home working-directory picker grants the agent read-only
-      // awareness of a local folder (via `--add-dir`), it does NOT import
-      // that folder into Design Files. So the picked path becomes the new
-      // project's `linkedDirs` rather than its `baseDir`/`userWorkingDir`:
-      // Design Files stays the managed `.od/projects/<id>` artifact store,
-      // independent of the user's local files.
       ...(linkedDirs.length > 0 ? { linkedDirs } : {}),
       ...(payload.examplePromptContext ? {
         examplePrompt: true,
@@ -1558,10 +1557,12 @@ export function EntryShell({
       ...(payload.attachments && payload.attachments.length > 0
         ? { pendingFiles: payload.attachments }
         : {}),
-      // No `userWorkingDirToken`: linkedDirs grant read-only `--add-dir`
-      // access and are validated by the daemon at create time, so they do
-      // not need the desktop main-process trust token that baseDir imports
-      // require for write access.
+      // The desktop mints a single-use trust token for the picked folder;
+      // the daemon's working-dir route requires it while the desktop auth
+      // gate is active. The pure web build has no gate and no token.
+      ...(workingDir && payload.workingDirToken
+        ? { userWorkingDirToken: payload.workingDirToken }
+        : {}),
       autoSendFirstMessage: true,
       ...(amrGatePrecheckWitness ? { amrGatePrecheckWitness } : {}),
     };

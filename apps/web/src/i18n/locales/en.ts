@@ -1017,7 +1017,7 @@ export const en: Dict = {
   'homeWorkingDir.recent': 'Recent folders',
   'homeWorkingDir.recentEmpty': 'No recent folders',
   'homeWorkingDir.clear': 'Remove working directory',
-  'homeWorkingDir.hint': 'Let the agent read this local folder (not imported into Design Files)',
+  'homeWorkingDir.hint': 'The project lives in this folder: the agent starts here and Design Files read from here',
   'homeWorkingDir.missing': 'This working folder no longer exists — pick another',
   'homeWorkingDir.applyFailed': 'Couldn\'t set the working directory — the folder may no longer exist',
   'workingDirPicker.title': 'Folder',

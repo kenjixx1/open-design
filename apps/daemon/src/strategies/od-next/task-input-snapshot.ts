@@ -713,6 +713,18 @@ export function createOdNextTaskInputSnapshot(input: {
         access: 'out_of_band',
       },
       attachments: facts,
+      // Aliases only; the real directories travel as OD_LINKED_DIRS in the
+      // spawn env, the same out-of-band shape attachments use for
+      // OD_TASK_INPUT_DIR. Absent (null) when nothing is linked so the block
+      // never appears for the common case.
+      linkedDirectoryTransport: linkedDirectoryCount > 0
+        ? {
+            scheme: 'env',
+            environmentVariable: 'OD_LINKED_DIRS',
+            format: 'json-object-keyed-by-reference',
+            access: 'out_of_band',
+          }
+        : null,
       comments: { count: Math.max(0, Math.floor(input.commentCount ?? 0)) },
       workspace: {
         project: { reference: 'workspace:project', access: 'out_of_band' },
@@ -768,6 +780,11 @@ function parseManifest(bytes: Buffer): SnapshotManifest {
     || parsed.requestInputFacts.attachmentTransport?.access !== 'out_of_band'
   ) {
     throw new OdNextTaskInputSnapshotError('OD Next task input manifest is invalid.');
+  }
+  // Snapshots frozen before the linked-dir transport existed carry no such
+  // field; they must still load, so the missing field reads as "none".
+  if (parsed.requestInputFacts.linkedDirectoryTransport === undefined) {
+    parsed.requestInputFacts.linkedDirectoryTransport = null;
   }
   return parsed;
 }

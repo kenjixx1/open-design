@@ -12,6 +12,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -313,9 +314,56 @@ describe('OD Next task-scoped input snapshots', () => {
     expect(loaded.requestInputText).toContain('"kind":"image"');
     expect(loaded.requestInputText).toContain('linked-dir:2');
     expect(loaded.requestInputText).toContain('OD_TASK_INPUT_DIR');
+    // The alias is only useful if the model is told where it resolves.
+    expect(loaded.requestInputText).toContain('"environmentVariable":"OD_LINKED_DIRS"');
+    expect(loaded.requestInputText).toContain('"format":"json-object-keyed-by-reference"');
     expect(loaded.requestInputText).not.toContain(f.root);
+    // No JSON string value may be an absolute path on any platform; the only
+    // slashes allowed are inside logical references and media types.
+    expect(loaded.requestInputText).not.toMatch(/"\/[^"]*"/);
+    expect(loaded.requestInputText).not.toMatch(/"[A-Za-z]:\\/);
     expect(loaded.taskConfigText).toContain('"taskType":"prototype"');
     expect(loaded.taskConfigText).toContain('"locale":"zh-CN"');
+  });
+
+  it('omits the linked directory transport when nothing is linked', () => {
+    const f = fixture();
+    const descriptor = createOdNextTaskInputSnapshot({
+      ...f,
+      taskExecutionId: 'odnext_no_linked',
+      commentCount: 1,
+    });
+    const loaded = loadOdNextTaskInputSnapshot(descriptor, f.snapshotsRoot);
+    expect(loaded.requestInputText).toContain('"linkedDirectoryTransport":null');
+    expect(loaded.requestInputText).not.toContain('OD_LINKED_DIRS');
+  });
+
+  it('still loads a manifest frozen before the linked directory transport existed', () => {
+    // Snapshots on disk from older daemons carry no `linkedDirectoryTransport`
+    // field. Requiring it would make every pre-existing Run unloadable.
+    const f = fixture();
+    const descriptor = createOdNextTaskInputSnapshot({
+      ...f,
+      taskExecutionId: 'odnext_legacy_manifest',
+      linkedDirectoryCount: 1,
+    });
+    const manifestPath = path.join(descriptor.snapshotDir, 'manifest.json');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      requestInputFacts: Record<string, unknown>;
+    };
+    delete manifest.requestInputFacts.linkedDirectoryTransport;
+    const legacyBytes = Buffer.from(JSON.stringify(manifest));
+    chmodSync(manifestPath, 0o600);
+    writeFileSync(manifestPath, legacyBytes);
+    chmodSync(manifestPath, 0o400);
+    const legacyDescriptor = {
+      ...descriptor,
+      manifestSha256: createHash('sha256').update(legacyBytes).digest('hex'),
+    };
+
+    const loaded = loadOdNextTaskInputSnapshot(legacyDescriptor, f.snapshotsRoot);
+    expect(loaded.requestInputText).toContain('linked-dir:1');
+    expect(loaded.requestInputText).toContain('"linkedDirectoryTransport":null');
   });
 
   it('derives type from frozen bytes rather than a deceptive extension', () => {

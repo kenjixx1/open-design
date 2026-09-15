@@ -670,6 +670,120 @@ process.stdin.on('end', () => {
     );
   });
 
+  it('hands linked directories to the agent as OD_LINKED_DIRS keyed by alias', async () => {
+    if (!process.env.OD_DATA_DIR) {
+      throw new Error('OD_DATA_DIR is required for linked directory env tests');
+    }
+
+    // Two real folders, one listed twice: the env must carry the validated,
+    // deduped list in creation order so `linked-dir:N` in the prompt and the
+    // env key agree, and no raw metadata duplicate shifts the numbering.
+    const projectId = `proj-${randomUUID()}`;
+    const markerDir = await fsp.mkdtemp(join(tmpdir(), 'od-linked-dirs-env-'));
+    tempDirs.push(markerDir);
+    const firstLinked = await fsp.realpath(await fsp.mkdtemp(join(tmpdir(), 'od-linked-a-')));
+    const secondLinked = await fsp.realpath(await fsp.mkdtemp(join(tmpdir(), 'od-linked-b-')));
+    tempDirs.push(firstLinked, secondLinked);
+    const envFile = join(markerDir, 'linked-dirs.json');
+
+    const createProjectResponse = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Linked dirs env fixture',
+        metadata: { kind: 'prototype', linkedDirs: [firstLinked, secondLinked, firstLinked] },
+      }),
+    });
+    expect(createProjectResponse.ok).toBe(true);
+
+    await withFakeAgent(
+      'opencode',
+      `
+const fs = require('node:fs');
+process.stdin.resume();
+process.stdin.on('end', () => {
+  fs.writeFileSync(${JSON.stringify(envFile)}, process.env.OD_LINKED_DIRS || '');
+  console.log(JSON.stringify({ type: 'step_start' }));
+  console.log(JSON.stringify({ type: 'text', part: { text: 'linked-dirs-env-ok' } }));
+  console.log(JSON.stringify({ type: 'step_finish', part: { tokens: { input: 1, output: 1 } } }));
+  process.exit(0);
+});
+`,
+      async () => {
+        const response = await fetch(`${baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: 'opencode',
+            projectId,
+            message: 'hello',
+          }),
+        });
+        const body = await response.text();
+
+        expect(response.ok).toBe(true);
+        expect(body).toContain('linked-dirs-env-ok');
+
+        const raw = await fsp.readFile(envFile, 'utf8');
+        expect(raw).not.toBe('');
+        expect(JSON.parse(raw)).toEqual({
+          'linked-dir:1': firstLinked,
+          'linked-dir:2': secondLinked,
+        });
+      },
+    );
+  });
+
+  it('leaves OD_LINKED_DIRS unset when the project links no directory', async () => {
+    if (!process.env.OD_DATA_DIR) {
+      throw new Error('OD_DATA_DIR is required for linked directory env tests');
+    }
+
+    const projectId = `proj-${randomUUID()}`;
+    const markerDir = await fsp.mkdtemp(join(tmpdir(), 'od-linked-dirs-none-'));
+    tempDirs.push(markerDir);
+    const envFile = join(markerDir, 'linked-dirs.txt');
+
+    const createProjectResponse = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: projectId, name: 'No linked dirs fixture' }),
+    });
+    expect(createProjectResponse.ok).toBe(true);
+
+    await withFakeAgent(
+      'opencode',
+      `
+const fs = require('node:fs');
+process.stdin.resume();
+process.stdin.on('end', () => {
+  fs.writeFileSync(${JSON.stringify(envFile)}, 'OD_LINKED_DIRS' in process.env ? 'set' : 'unset');
+  console.log(JSON.stringify({ type: 'step_start' }));
+  console.log(JSON.stringify({ type: 'text', part: { text: 'no-linked-dirs-ok' } }));
+  console.log(JSON.stringify({ type: 'step_finish', part: { tokens: { input: 1, output: 1 } } }));
+  process.exit(0);
+});
+`,
+      async () => {
+        const response = await fetch(`${baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: 'opencode',
+            projectId,
+            message: 'hello',
+          }),
+        });
+        const body = await response.text();
+
+        expect(response.ok).toBe(true);
+        expect(body).toContain('no-linked-dirs-ok');
+        expect(await fsp.readFile(envFile, 'utf8')).toBe('unset');
+      },
+    );
+  });
+
   it('passes BYOK provider config to the daemon-backed OpenCode runtime', async () => {
     if (!process.env.OD_DATA_DIR) {
       throw new Error('OD_DATA_DIR is required for BYOK OpenCode config tests');

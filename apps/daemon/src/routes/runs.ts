@@ -72,6 +72,7 @@ import {
   readTelemetrySinkConfig,
 } from '../langfuse-trace.js';
 import { parseMediaExecutionPolicyInput } from '../media/policy.js';
+import { validateLinkedDirs } from '../linked-dirs.js';
 import { isManagedProjectCwd } from '../mcp-config.js';
 import {
   normalizeExternalPluginRunAnalyticsHints,
@@ -2831,8 +2832,12 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
           commentCount: Array.isArray(requestBody.commentAttachments)
             ? requestBody.commentAttachments.length
             : 0,
+          // Same validated/realpathed/deduped list `startChatRun` puts in
+          // OD_LINKED_DIRS, so alias N in the prompt and key N in the env
+          // always name the same directory. The raw metadata length could
+          // count a duplicate or a folder that no longer exists.
           linkedDirectoryCount: Array.isArray(runProject?.metadata?.linkedDirs)
-            ? runProject.metadata.linkedDirs.length
+            ? (validateLinkedDirs(runProject.metadata.linkedDirs).dirs ?? []).length
             : 0,
           mcpServerCount: mcpIds.length + runToolServers.length,
         });

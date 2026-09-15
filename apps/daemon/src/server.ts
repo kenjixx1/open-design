@@ -14241,6 +14241,19 @@ export async function startServer({
         ...(odNextTaskInputSnapshot
           ? { OD_TASK_INPUT_DIR: odNextTaskInputSnapshot.projectionDir }
           : {}),
+        // Daemon-owned resolver for linked-dir:N references. The prompt names
+        // only the alias; this is the one place the real directory appears,
+        // keyed by that alias in creation order so the numbering matches the
+        // Bundle. Set for every agent: Claude also gets --add-dir, but Codex
+        // deliberately does not (it would make the folder writable), so the
+        // env is how a linked folder reaches Codex at all.
+        ...(linkedDirs.length > 0
+          ? {
+              OD_LINKED_DIRS: JSON.stringify(
+                Object.fromEntries(linkedDirs.map((dir, index) => [`linked-dir:${index + 1}`, dir])),
+              ),
+            }
+          : {}),
       }, agentLaunch);
       if (def.id === 'opencode' || def.id === 'byok-opencode') {
         try {

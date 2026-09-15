@@ -340,7 +340,7 @@ export const OD_NEXT_EXACT_INPUT_MAP_V1 = [
     classification: 'excluded',
     source: 'loadOdNextTaskInputSnapshot().requestInputText',
     owner: 'Task 04 immutable workspace reference',
-    note: 'Live linked-directory paths are excluded; stable linked-dir:N aliases are emitted while access stays out of band.',
+    note: 'Live linked-directory paths are excluded; stable linked-dir:N aliases are emitted and resolve out of band through the OD_LINKED_DIRS spawn env (a JSON object keyed by alias).',
   },
   {
     id: 'clarification_turn',

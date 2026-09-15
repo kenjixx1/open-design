@@ -1215,6 +1215,7 @@ import {
 } from './http/local-daemon-request.js';
 import { renderOAuthResultPage } from './http/oauth-result-page.js';
 import { bearerTokenFromRequest, createToolRequestAuth } from './http/tool-request-auth.js';
+import { projectRulesForPrompt } from './project-rules-prompt.js';
 
 /** @typedef {import('@open-design/contracts').ApiErrorCode} ApiErrorCode */
 /** @typedef {import('@open-design/contracts').ApiError} ApiError */
@@ -10015,7 +10016,13 @@ export async function startServer({
     if (appConfigForPrompt?.customInstructions) {
       userInstructions = appConfigForPrompt.customInstructions;
     }
-    const projectInstructions = project?.customInstructions ?? '';
+    // Repo-level rules from `.open-design.json` ride the same project-instructions
+    // channel as the user's saved instructions, so every runtime sees them.
+    const repoRulesBlock = await projectRulesForPrompt(
+      typeof project?.metadata?.baseDir === 'string' ? project.metadata.baseDir : null,
+    );
+    const projectInstructions = [project?.customInstructions ?? '', repoRulesBlock]
+      .map((s) => s.trim()).filter(Boolean).join('\n\n');
 
     let designSystemBody;
     let designSystemTitle;

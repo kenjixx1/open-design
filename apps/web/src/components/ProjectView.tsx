@@ -8431,7 +8431,14 @@ export function ProjectView({
               effectiveSelectedAgentChoice?.model,
             )
           : apiProtocolModelLabel(config.apiProtocol, config.model);
-      const preTurnFileNames = projectFiles.map((f) => f.name);
+      // The turn baseline is only meaningful once the file list has actually
+      // loaded (generation > 0). A folder-backed project auto-sends its first
+      // message before that fetch lands; an empty [] baseline would then mark
+      // every pre-existing repo file as produced by this run. `undefined`
+      // means "unknown", and the finish paths fall back to the post-run list.
+      const preTurnFileNames = projectFilesSnapshot.generation > 0
+        ? projectFiles.map((f) => f.name)
+        : undefined;
       const assistantId = meta?.assistantMessageId ?? randomUUID();
       const assistantMsg: ChatMessage = {
         id: assistantId,

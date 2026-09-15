@@ -3196,9 +3196,16 @@ export function HomeView({
         onPickWorkingDir={handlePickWorkingDir}
         onPickLocalCodeDir={handlePickLocalCodeDir}
         onSelectRecentWorkingDir={(dir) => {
+          // The working directory becomes the project's folder, and the
+          // daemon's working-dir route needs the desktop's single-use trust
+          // token for that. Recents carry no token, so inside the desktop a
+          // recent pick reopens the native picker (it mints one); the pure
+          // web build has no gate and can take the path as is.
+          if (isOpenDesignHostAvailable()) {
+            void handlePickWorkingDir();
+            return;
+          }
           setWorkingDir(dir);
-          // Recents come from the browser-side picker only; they carry no
-          // desktop trust token (and linkedDirs don't need one).
           setWorkingDirToken(null);
           void rememberRecentDir(dir);
         }}

@@ -28,6 +28,17 @@ describe('renderProjectRulesBlock', () => {
   it('returns empty when there is nothing to say', () => {
     expect(renderProjectRulesBlock({ designFiles: ['Design'], readFirst: [], rules: '' }, repo())).toBe('');
   });
+  it('accepts a directory entry as a valid read-first target', () => {
+    const root = repo();
+    const block = renderProjectRulesBlock(
+      { designFiles: [], readFirst: ['docs', 'nope.md'], rules: '' },
+      root,
+    );
+    expect(block).toBe(
+      '## Project rules (from .open-design.json)\n\n' +
+      'Read these files before designing anything:\n- docs',
+    );
+  });
 });
 
 describe('projectRulesForPrompt', () => {

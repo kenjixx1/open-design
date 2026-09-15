@@ -11,7 +11,7 @@ export const PROJECT_RULES_HEADING = '## Project rules (from .open-design.json)'
 
 export function renderProjectRulesBlock(scope: ProjectScope, rootDir: string): string {
   const present = scope.readFirst.filter((rel) => {
-    try { return fs.statSync(path.join(rootDir, rel)).isFile() || fs.statSync(path.join(rootDir, rel)).isDirectory(); } catch { return false; }
+    try { const st = fs.statSync(path.join(rootDir, rel)); return st.isFile() || st.isDirectory(); } catch { return false; }
   });
   const parts: string[] = [];
   if (present.length > 0) {

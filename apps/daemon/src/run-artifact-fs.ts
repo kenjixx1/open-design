@@ -16,6 +16,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { readProjectScope, readProjectScopeSync } from './project-scope.js';
 import {
   isArtifactPath,
   isDesignSystemFile,
@@ -147,6 +148,7 @@ function statOnlyFingerprint(size: number, mtimeMs: number): ArtifactFingerprint
 // exist.
 export function snapshotProjectArtifacts(rootDir: string): ArtifactSnapshot {
   const snapshot: ArtifactSnapshot = new Map();
+  const scopeRoots = readProjectScopeSync(rootDir);
   let trackedCount = 0;
   let otherCount = 0;
   const walk = (dir: string): void => {
@@ -182,7 +184,11 @@ export function snapshotProjectArtifacts(rootDir: string): ArtifactSnapshot {
       }
     }
   };
-  walk(rootDir);
+  if (scopeRoots) {
+    for (const root of scopeRoots) walk(path.join(rootDir, root));
+  } else {
+    walk(rootDir);
+  }
   return snapshot;
 }
 
@@ -193,6 +199,7 @@ export function snapshotProjectArtifacts(rootDir: string): ArtifactSnapshot {
 // and SSE traffic while a large project is scanned.
 export async function snapshotProjectArtifactsAsync(rootDir: string): Promise<ArtifactSnapshot> {
   const snapshot: ArtifactSnapshot = new Map();
+  const scopeRoots = await readProjectScope(rootDir);
   const files: Array<{ full: string; tracked: boolean }> = [];
   let trackedCount = 0;
   let otherCount = 0;
@@ -218,7 +225,11 @@ export async function snapshotProjectArtifactsAsync(rootDir: string): Promise<Ar
       }
     }
   };
-  await walk(rootDir);
+  if (scopeRoots) {
+    for (const root of scopeRoots) await walk(path.join(rootDir, root));
+  } else {
+    await walk(rootDir);
+  }
 
   // A small worker pool prevents a 5k-file project from turning the async
   // safety fix into a long serial tail, while still bounding filesystem load.

@@ -28,6 +28,7 @@ import {
   isPublicationGuardedArtifactKind,
 } from './artifacts/publication-guard.js';
 import { normalizeArtifactRuntimeImports } from './artifacts/runtime-compat.js';
+import { readProjectScope } from './project-scope.js';
 import { isIgnoredProjectDirName } from './project-ignored-dirs.js';
 import {
   isSandboxImportedProjectRootAllowed,
@@ -153,7 +154,16 @@ export async function listFiles(projectsRoot, projectId, opts = {}) {
   // Skip generated dependency/build trees for all project roots. Standard OD
   // projects can contain framework installs too; surfacing package HTML like
   // node_modules/tslib/*.html as artifacts produces blank previews.
-  await collectFiles(dir, '', out, isIgnoredProjectDirName, dir);
+  // A folder-backed repo can narrow the walk to its design folders through
+  // `.open-design.json` (see project-scope.ts); otherwise walk the whole root.
+  const scope = await readProjectScope(dir);
+  if (scope) {
+    for (const root of scope) {
+      await collectFiles(path.join(dir, root), root, out, isIgnoredProjectDirName, dir);
+    }
+  } else {
+    await collectFiles(dir, '', out, isIgnoredProjectDirName, dir);
+  }
   // Newest first — matches the visual order users expect after generating.
   out.sort((a, b) => b.mtime - a.mtime);
   const since = Number(opts.since);
@@ -167,7 +177,14 @@ export async function listProjectFolders(projectsRoot, projectId, opts = {}) {
   const metadata = opts?.metadata;
   const dir = resolveProjectDir(projectsRoot, projectId, metadata);
   const out = [];
-  await collectFolders(dir, '', out, isIgnoredProjectDirName);
+  const scope = await readProjectScope(dir);
+  if (scope) {
+    for (const root of scope) {
+      await collectFolders(path.join(dir, root), root, out, isIgnoredProjectDirName);
+    }
+  } else {
+    await collectFolders(dir, '', out, isIgnoredProjectDirName);
+  }
   out.sort((a, b) => a.name.localeCompare(b.name));
   return out;
 }

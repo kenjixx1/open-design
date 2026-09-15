@@ -252,6 +252,17 @@ the active-run staging implementation is in
   live model discovery, with static model hints as a fallback. Skills use the
   shared composition/staging path in §4 rather than version-gated loading from
   `~/.codex/skills/`.
+- Linked directories (project `metadata.linkedDirs`) reach Codex through the
+  `OD_LINKED_DIRS` environment variable, not `--add-dir`. Codex treats every
+  `--add-dir` as writable, so the daemon never grants one for a linked folder
+  (`resolveChatExtraAllowedDirs` returns no extra directories for Codex). The
+  value is a JSON object keyed by the `linked-dir:N` aliases the prompt uses,
+  e.g. `{"linked-dir:1":"/abs/path/to/reference"}`, in the same order the
+  OD Next request input facts list them; the sandbox reads those paths but
+  cannot write to them. `OD_LINKED_DIRS` is on the Codex shell-environment
+  allowlist next to `OD_TASK_INPUT_DIR`, so tool shells see it under both the
+  app-server and `exec-json` transports. The prompt bundle itself never
+  carries an absolute path; the alias resolves only through this variable.
 
 ### 5.4 Devin for Terminal
 

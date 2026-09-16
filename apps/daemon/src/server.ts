@@ -560,6 +560,7 @@ import {
   resolveOdNextPromptRecipeForRun,
 } from './strategies/od-next/initial-prompt-bundle-service.js';
 import { OdNextMachineProtocolStream } from './strategies/od-next/protocol.js';
+import { physicalStatusAfterStrategyOutcome } from './strategies/od-next/blocked-run-status.js';
 import {
   blockAutomaticContinuation,
   prepareAutomaticStrategyContinuation,
@@ -12768,19 +12769,33 @@ export async function startServer({
       // A clean child exit does not complete a task rejected by the strategy
       // gate. Reconcile before persisting the message or publishing the Run
       // terminal event, while retaining the actual process exit code.
+      //
+      // One blocked verdict is not a rejection: an agent that deliberately
+      // answers without a deliverable — a question, an explanation — declares
+      // the block itself and raises no machine code. That is a completed chat
+      // turn, not a crash, so the run stays succeeded and no error card is
+      // published. The task record still carries the blocked outcome for the
+      // strategy's own bookkeeping.
       if (
         status === 'succeeded'
         && run.strategyTask?.outcome === 'blocked'
         && run.strategyTask.activeRunId === run.id
       ) {
-        status = 'failed';
-        allowRetry = false;
         const reasonCodes = run.strategyTask.blockedContext?.reasonCodes ?? [];
-        send('error', createSseErrorPayload(
-          'OD_NEXT_TASK_BLOCKED',
-          `The task could not complete${reasonCodes.length ? `: ${reasonCodes.join(', ')}` : '.'}`,
-          { retryable: false, details: { reasonCodes } },
-        ));
+        const blockedDecision = physicalStatusAfterStrategyOutcome(
+          status,
+          'blocked',
+          reasonCodes,
+        );
+        status = blockedDecision.status;
+        if (blockedDecision.reportBlocked) {
+          allowRetry = false;
+          send('error', createSseErrorPayload(
+            'OD_NEXT_TASK_BLOCKED',
+            `The task could not complete${reasonCodes.length ? `: ${reasonCodes.join(', ')}` : '.'}`,
+            { retryable: false, details: { reasonCodes } },
+          ));
+        }
       }
       flushRunMessageEvents(run);
       // Persist the transport-level close mechanism before classifying this

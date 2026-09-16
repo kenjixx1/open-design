@@ -251,6 +251,12 @@ export function registerImportRoutes(app: Express, ctx: RegisterImportRoutesDeps
       if (!dirStat.isDirectory()) {
         return sendApiError(res, 400, 'BAD_REQUEST', 'path must be a directory');
       }
+      if (
+        normalizedPath === RUNTIME_DATA_DIR_CANONICAL ||
+        normalizedPath.startsWith(RUNTIME_DATA_DIR_CANONICAL + path.sep)
+      ) {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'cannot point at the data directory');
+      }
       const reason = await blockedProjectRootReason(normalizedPath);
       if (reason) return sendApiError(res, 400, 'BAD_REQUEST', reason);
       res.json(await suggestProjectSetup(normalizedPath));
@@ -418,6 +424,10 @@ export function registerImportRoutes(app: Express, ctx: RegisterImportRoutesDeps
         } catch (err: any) {
           setupResult = { applied: false, error: String(err?.message || err) };
         }
+      } else if (setup !== undefined && setup !== null) {
+        // A malformed setup (array, string, number) is reported, never dropped:
+        // the caller asked for setup and must learn it did not happen.
+        setupResult = { applied: false, error: 'setup must be an object' };
       }
       /** @type {import('@open-design/contracts').ReplaceProjectWorkingDirResponse} */
       const body = {

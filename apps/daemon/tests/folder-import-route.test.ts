@@ -519,6 +519,58 @@ describe('POST /api/import/folder', () => {
     await expect(stat(path.join(root, 'Design'))).resolves.toBeTruthy();
   });
 
+  it('refuses a setup-carrying working-dir replacement when the desktop token is missing', async () => {
+    const folder = makeFolder();
+    await writeFile(path.join(folder, 'index.html'), '<!doctype html>');
+    const importResp = await importFolder({ baseDir: folder });
+    expect(importResp.status).toBe(200);
+    const { project } = (await importResp.json()) as { project: { id: string } };
+
+    const nextFolder = makeFolder();
+    await writeFile(path.join(nextFolder, 'index.html'), '<!doctype html>');
+    // Arm the desktop gate only now, so the import above stays in web mode.
+    setDesktopAuthSecret(randomBytes(32));
+    const replaceResp = await fetch(`${baseUrl}/api/projects/${project.id}/working-dir`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        baseDir: nextFolder,
+        setup: { designFiles: ['Design'], rules: 'r' },
+      }),
+    });
+    expect(replaceResp.status).toBe(403);
+    const body = (await replaceResp.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe('FORBIDDEN');
+    // The gate runs before any setup write: nothing landed in the folder.
+    const root = await realpath(nextFolder);
+    await expect(stat(path.join(root, '.open-design.json'))).rejects.toBeTruthy();
+  });
+
+  it('reports a non-object setup payload instead of silently ignoring it', async () => {
+    const folder = makeFolder();
+    await writeFile(path.join(folder, 'index.html'), '<!doctype html>');
+    const importResp = await importFolder({ baseDir: folder });
+    expect(importResp.status).toBe(200);
+    const { project } = (await importResp.json()) as { project: { id: string } };
+
+    const nextFolder = makeFolder();
+    await writeFile(path.join(nextFolder, 'index.html'), '<!doctype html>');
+    const replaceResp = await fetch(`${baseUrl}/api/projects/${project.id}/working-dir`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ baseDir: nextFolder, setup: ['Design'] }),
+    });
+    expect(replaceResp.status).toBe(200);
+    const body = (await replaceResp.json()) as {
+      setupApplied?: boolean;
+      setupError?: string;
+    };
+    expect(body.setupApplied).toBe(false);
+    expect(body.setupError).toMatch(/setup must be an object/i);
+    const root = await realpath(nextFolder);
+    await expect(stat(path.join(root, '.open-design.json'))).rejects.toBeTruthy();
+  });
+
   it('writes the setup of an already folder-backed project', async () => {
     const folder = makeFolder();
     await writeFile(path.join(folder, 'index.html'), '<!doctype html>');
@@ -1201,5 +1253,21 @@ describe('POST /api/import/folder', () => {
       body: JSON.stringify({ baseDir: homedir() }),
     });
     expect(resp.status).toBe(400);
+  });
+
+  it('rejects setup suggestions rooted in the daemon data directory', async () => {
+    const dataDir = process.env.OD_DATA_DIR;
+    if (!dataDir) {
+      // Test setup didn't pin a data dir — skip this case rather than guess.
+      return;
+    }
+    const resp = await fetch(`${baseUrl}/api/projects/setup-suggestions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ baseDir: dataDir }),
+    });
+    expect(resp.status).toBe(400);
+    const body = (await resp.json()) as { error?: { message?: string } };
+    expect(body.error?.message).toMatch(/data directory/i);
   });
 });

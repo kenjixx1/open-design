@@ -37,7 +37,7 @@ function cleanRelativePath(entry: unknown, { singleSegment }: { singleSegment: b
   const trimmed = entry.trim().replace(/^\.\//, '').replace(/[\\/]+$/, '');
   if (!trimmed || path.isAbsolute(trimmed)) return null;
   const segs = trimmed.split(/[\\/]/);
-  if (segs.some((s) => s === '' || s === '..')) return null;
+  if (segs.some((s) => s === '' || s === '.' || s === '..')) return null;
   if (singleSegment && segs.length !== 1) return null;
   return segs.join('/');
 }

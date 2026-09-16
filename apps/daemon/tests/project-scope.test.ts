@@ -19,8 +19,8 @@ describe('parseProjectScope', () => {
   });
   it('drops unsafe entries and nested design folders', () => {
     const s = parseProjectScope(JSON.stringify({
-      designFiles: ['../x', '/abs', 'a/b', 'ok'],
-      readFirst: ['../secret', '/etc/passwd', 'docs//x.md', 'fine.md'],
+      designFiles: ['../x', '/abs', 'a/b', '.', 'ok'],
+      readFirst: ['../secret', '/etc/passwd', 'docs//x.md', 'a/./b', 'fine.md'],
     }));
     expect(s?.designFiles).toEqual(['ok']);
     expect(s?.readFirst).toEqual(['fine.md']);

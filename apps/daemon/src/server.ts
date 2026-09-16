@@ -310,6 +310,7 @@ import {
   getDesktopAuthSecret,
   isDesktopAuthGateActive,
   isDesktopAuthRegistered,
+  peekDesktopImportToken,
   pruneExpiredImportNonces,
   resetDesktopAuthForTests,
   setDesktopAuthSecret,
@@ -320,6 +321,7 @@ import { normalizeDaemonBindHost } from './daemon-startup.js';
 export {
   isDesktopAuthGateActive,
   isDesktopAuthRegistered,
+  peekDesktopImportToken,
   resetDesktopAuthForTests,
   setDesktopAuthSecret,
   signDesktopImportToken,
@@ -8395,6 +8397,7 @@ export async function startServer({
     consumedImportNonces,
     desktopAuthSecret: getDesktopAuthSecret,
     isDesktopAuthGateActive,
+    peekDesktopImportToken,
     pruneExpiredImportNonces,
     optionalToolGrantFromRequest,
     requestProjectOverride,

@@ -39,6 +39,7 @@ import {
 } from './deck-export.js';
 import { readProjectFileVersion } from './project-file-versions.js';
 import { applyProjectSetup, type ProjectSetupInput } from './project-setup.js';
+import { suggestProjectSetup } from './project-setup-suggestions.js';
 import { authorizeReasoningEgress, sendReasoningEgressDenial } from './reasoning-egress.js';
 import { sandboxImportedProjectRootUnavailableReason } from './sandbox-mode.js';
 import { parseOrchestratorWorkspace } from './workspace-contract.js';
@@ -89,6 +90,7 @@ export function registerImportRoutes(app: Express, ctx: RegisterImportRoutesDeps
     consumedImportNonces,
     desktopAuthSecret,
     isDesktopAuthGateActive,
+    peekDesktopImportToken,
     pruneExpiredImportNonces,
     verifyDesktopImportToken,
   } = ctx.auth;
@@ -187,6 +189,81 @@ export function registerImportRoutes(app: Express, ctx: RegisterImportRoutesDeps
       }
     },
   );
+
+  // Guess a folder's setup so the setup card opens pre-filled instead of
+  // empty: which folder holds the designs, what to read first, what the rules
+  // should say. Read-only — nothing is written until the user accepts and the
+  // working-dir (or setup) route runs.
+  //
+  // Registered BEFORE every `/api/projects/:id/...` route below so Express
+  // cannot route `setup-suggestions` as a project id.
+  app.post('/api/projects/setup-suggestions', async (req, res) => {
+    try {
+      const { baseDir } = req.body || {};
+      if (typeof baseDir !== 'string' || !baseDir.trim()) {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'baseDir required');
+      }
+      const trimmedInput = baseDir.trim();
+      if (!path.isAbsolute(path.normalize(trimmedInput))) {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'baseDir must be absolute');
+      }
+      if (isDesktopAuthGateActive()) {
+        const secret = desktopAuthSecret();
+        if (secret == null) {
+          return sendApiError(
+            res,
+            503,
+            'DESKTOP_AUTH_PENDING',
+            'desktop auth required but secret not yet registered',
+            {
+              details: { hint: 'restart desktop or wait for sidecar registration' },
+              retryable: true,
+            },
+          );
+        }
+        const headerValue = req.get('x-od-desktop-import-token');
+        const token = typeof headerValue === 'string' ? headerValue : '';
+        // Peek, never consume: this is the same token the working-dir call the
+        // user makes right after accepting these suggestions has to spend.
+        const verification = peekDesktopImportToken(secret, baseDir, token, Date.now());
+        if (!verification.ok) {
+          return sendApiError(
+            res,
+            403,
+            'FORBIDDEN',
+            'desktop import token rejected',
+            { details: { reason: verification.reason } },
+          );
+        }
+      }
+      let normalizedPath: string;
+      try {
+        normalizedPath = await fs.promises.realpath(trimmedInput);
+      } catch {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'folder not found');
+      }
+      let dirStat;
+      try {
+        dirStat = await fs.promises.lstat(normalizedPath);
+      } catch {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'folder not found');
+      }
+      if (!dirStat.isDirectory()) {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'path must be a directory');
+      }
+      if (isBlockedSystemDir(normalizedPath)) {
+        return sendApiError(
+          res,
+          400,
+          'BAD_REQUEST',
+          'cannot use a system or credential directory as a project root',
+        );
+      }
+      res.json(await suggestProjectSetup(normalizedPath));
+    } catch (err: any) {
+      sendApiError(res, 400, 'BAD_REQUEST', String(err?.message || err));
+    }
+  });
 
   // Import an existing local folder as a project. The user picks a folder
   // and OD works inside it directly: every write goes to metadata.baseDir.

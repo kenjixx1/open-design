@@ -9,6 +9,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import {
   isDesktopAuthGateActive,
   resetDesktopAuthForTests,
+  peekDesktopImportToken,
   setDesktopAuthSecret,
   signDesktopImportToken,
   startServer,
@@ -433,5 +434,44 @@ describe('verifyDesktopImportToken (pure helper)', () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toMatch(/window/i);
+  });
+});
+
+describe('peekDesktopImportToken (non-consuming verifier)', () => {
+  // Read-only callers (the setup-suggestions probe) verify the same token the
+  // user's later working-dir call will spend. They must not spend it
+  // themselves, and must not care whether it has been spent already.
+  const SECRET = randomBytes(32);
+  const NOW = Date.parse('2026-05-08T20:00:00.000Z');
+  const VALID_EXP = '2026-05-08T20:00:30.000Z';
+
+  function mint(baseDir: string, nonce: string, exp: string): string {
+    const sig = createHmac('sha256', SECRET).update(`${baseDir}\n${nonce}\n${exp}`).digest('base64url');
+    return [nonce, exp, sig].join('~');
+  }
+
+  it('accepts a valid token without touching the consumed-nonce set', () => {
+    const token = mint('/Users/u/proj', 'peek1', VALID_EXP);
+    const result = peekDesktopImportToken(SECRET, '/Users/u/proj', token, NOW);
+    expect(result.ok).toBe(true);
+    // Verifying the same token twice still succeeds: nothing was spent.
+    expect(peekDesktopImportToken(SECRET, '/Users/u/proj', token, NOW).ok).toBe(true);
+    // And the real verifier can still spend it afterwards.
+    const consumed = new Map<string, number>();
+    expect(verifyDesktopImportToken(SECRET, '/Users/u/proj', token, NOW, consumed).ok).toBe(true);
+  });
+
+  it('accepts a token whose nonce the working-dir route already consumed', () => {
+    const token = mint('/p', 'peek2', VALID_EXP);
+    const consumed = new Map<string, number>([['peek2', NOW + 60_000]]);
+    expect(verifyDesktopImportToken(SECRET, '/p', token, NOW, consumed).ok).toBe(false);
+    expect(peekDesktopImportToken(SECRET, '/p', token, NOW).ok).toBe(true);
+  });
+
+  it('still rejects the shape, expiry, and signature failures the verifier rejects', () => {
+    expect(peekDesktopImportToken(SECRET, '/p', '', NOW).ok).toBe(false);
+    expect(peekDesktopImportToken(SECRET, '/p', 'a~b', NOW).ok).toBe(false);
+    expect(peekDesktopImportToken(SECRET, '/p', mint('/p', 'peek3', VALID_EXP), NOW + 60_000).ok).toBe(false);
+    expect(peekDesktopImportToken(SECRET, '/other', mint('/p', 'peek4', VALID_EXP), NOW).ok).toBe(false);
   });
 });

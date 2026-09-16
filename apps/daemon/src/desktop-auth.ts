@@ -63,12 +63,12 @@ export type DesktopImportTokenVerification =
   | { ok: true; nonce: string; exp: number }
   | { ok: false; reason: string };
 
-export function verifyDesktopImportToken(
+function checkDesktopImportToken(
   secret: Buffer,
   baseDir: string,
   token: string,
   now: number,
-  consumedNonces: Map<string, number>,
+  consumedNonces: ReadonlyMap<string, number> | null,
 ): DesktopImportTokenVerification {
   if (typeof token !== 'string' || token.length === 0) {
     return { ok: false, reason: 'token missing' };
@@ -99,8 +99,39 @@ export function verifyDesktopImportToken(
   if (!timingSafeStringEquals(expected, signature)) {
     return { ok: false, reason: 'token signature invalid' };
   }
-  if (consumedNonces.has(nonce)) {
+  if (consumedNonces?.has(nonce)) {
     return { ok: false, reason: 'token nonce already used' };
   }
   return { ok: true, nonce, exp: expMs };
+}
+
+/**
+ * Full verification: shape, expiry, signature, and single use. The caller
+ * spends the nonce itself (`consumedNonces.set(...)`) once the request it
+ * guards has actually succeeded.
+ */
+export function verifyDesktopImportToken(
+  secret: Buffer,
+  baseDir: string,
+  token: string,
+  now: number,
+  consumedNonces: Map<string, number>,
+): DesktopImportTokenVerification {
+  return checkDesktopImportToken(secret, baseDir, token, now, consumedNonces);
+}
+
+/**
+ * Same shape, expiry, and signature checks, but the nonce set is never read
+ * and never written. Read-only probes (the setup-suggestions endpoint) look at
+ * the very token the user's later working-dir call will spend: consuming it
+ * here would break that call, and refusing an already-spent nonce would make
+ * the probe fail after a folder had been set. Never use this to guard a write.
+ */
+export function peekDesktopImportToken(
+  secret: Buffer,
+  baseDir: string,
+  token: string,
+  now: number,
+): DesktopImportTokenVerification {
+  return checkDesktopImportToken(secret, baseDir, token, now, null);
 }

@@ -150,6 +150,58 @@ describe('RepoSetupDialog', () => {
     );
   });
 
+  it('blocks Continue for dot and dot-prefixed new folder names', () => {
+    renderDialog();
+
+    fireEvent.change(designFolderSelect(), { target: { value: '__create__' } });
+
+    const continueButton = screen.getByRole('button', { name: 'Continue' }) as HTMLButtonElement;
+    const nameInput = screen.getByLabelText('Create a new folder…') as HTMLInputElement;
+
+    fireEvent.change(nameInput, { target: { value: '..' } });
+    expect(continueButton.disabled).toBe(true);
+
+    fireEvent.change(nameInput, { target: { value: '.hidden' } });
+    expect(continueButton.disabled).toBe(true);
+
+    fireEvent.change(nameInput, { target: { value: 'Design' } });
+    expect(continueButton.disabled).toBe(false);
+  });
+
+  it('keeps a typed edit across a re-render with a freshly-cloned but equal suggestions object', () => {
+    const onContinue = vi.fn();
+    const onNotNow = vi.fn();
+    const { rerender } = render(
+      <RepoSetupDialog
+        open
+        repoName="Peeraney-ERP"
+        suggestions={suggestionsFixture()}
+        loading={false}
+        onContinue={onContinue}
+        onNotNow={onNotNow}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('House rules for designing here'), {
+      target: { value: 'Use the house palette.' },
+    });
+
+    rerender(
+      <RepoSetupDialog
+        open
+        repoName="Peeraney-ERP"
+        suggestions={suggestionsFixture()}
+        loading={false}
+        onContinue={onContinue}
+        onNotNow={onNotNow}
+      />,
+    );
+
+    expect(
+      (screen.getByLabelText('House rules for designing here') as HTMLTextAreaElement).value,
+    ).toBe('Use the house palette.');
+  });
+
   it('pre-fills from an existing setup when one is handed in', () => {
     const { onContinue } = renderDialog({
       initial: {

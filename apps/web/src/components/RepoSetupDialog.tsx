@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Button,
@@ -55,6 +55,20 @@ function oneSegment(value: string): string {
   return value.replace(/[\\/]/g, '');
 }
 
+/**
+ * Guards the "Create a new folder…" name: rejects empty/whitespace-only
+ * input, any slash, `.` and `..`, and any dot-prefixed name (e.g. `.git`) —
+ * none of those are a folder Open Design should create or write into.
+ */
+function isValidNewFolderName(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (/[\\/]/.test(trimmed)) return false;
+  if (trimmed === '.' || trimmed === '..') return false;
+  if (trimmed.startsWith('.')) return false;
+  return true;
+}
+
 function seedRows(suggestions: SetupSuggestions | null, initial?: RepoSetup | null): ReadFirstRow[] {
   const rows: ReadFirstRow[] = (suggestions?.readFirst ?? []).map((entry) => ({
     path: entry.path,
@@ -100,10 +114,23 @@ export function RepoSetupDialog({
   const [addDraft, setAddDraft] = useState('');
 
   // Seed every field when the card opens, and again when a later answer from
-  // the daemon (or a different setup to edit) arrives. Deliberately keyed on
-  // those inputs only: re-seeding on every render would wipe the user's edits.
+  // the daemon (or a different setup to edit) actually changes. Keyed on the
+  // *content* of suggestions/initial (via a ref, not the effect deps): a
+  // caller that re-creates an equal object on every render — new identity,
+  // same data — must not wipe the user's edits mid-typing.
+  const seedKeyRef = useRef<string | null>(null);
+  const openRef = useRef(open);
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      openRef.current = open;
+      return;
+    }
+    const seedKey = JSON.stringify({ s: suggestions, i: initial });
+    const justOpened = !openRef.current;
+    openRef.current = open;
+    if (!justOpened && seedKey === seedKeyRef.current) return;
+    seedKeyRef.current = seedKey;
+
     const candidates = suggestions?.designFolders ?? [];
     setFolder(initial?.designFiles[0] ?? candidates[0]?.path ?? CREATE_FOLDER);
     setNewFolder('');
@@ -126,7 +153,8 @@ export function RepoSetupDialog({
 
   const creating = folder === CREATE_FOLDER;
   const designFolder = creating ? newFolder.trim() : folder;
-  const canContinue = !loading && designFolder.length > 0;
+  const canContinue =
+    !loading && (creating ? isValidNewFolderName(newFolder) : designFolder.length > 0);
 
   function addFile() {
     const path = addDraft.trim().replace(/^\.\//, '').replace(/[\\/]+$/, '');

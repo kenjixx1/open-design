@@ -251,14 +251,8 @@ export function registerImportRoutes(app: Express, ctx: RegisterImportRoutesDeps
       if (!dirStat.isDirectory()) {
         return sendApiError(res, 400, 'BAD_REQUEST', 'path must be a directory');
       }
-      if (isBlockedSystemDir(normalizedPath)) {
-        return sendApiError(
-          res,
-          400,
-          'BAD_REQUEST',
-          'cannot use a system or credential directory as a project root',
-        );
-      }
+      const reason = await blockedProjectRootReason(normalizedPath);
+      if (reason) return sendApiError(res, 400, 'BAD_REQUEST', reason);
       res.json(await suggestProjectSetup(normalizedPath));
     } catch (err: any) {
       sendApiError(res, 400, 'BAD_REQUEST', String(err?.message || err));

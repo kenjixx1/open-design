@@ -2,7 +2,7 @@ import type http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { chmod, mkdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import JSZip from 'jszip';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -1192,5 +1192,14 @@ describe('POST /api/import/folder', () => {
     expect(resp.status).toBe(400);
     const body = (await resp.json()) as { error?: { message?: string } };
     expect(body.error?.message).toMatch(/data directory/i);
+  });
+
+  it('rejects setup suggestions rooted at $HOME via the shared project-root check', async () => {
+    const resp = await fetch(`${baseUrl}/api/projects/setup-suggestions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ baseDir: homedir() }),
+    });
+    expect(resp.status).toBe(400);
   });
 });

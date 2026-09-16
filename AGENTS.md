@@ -1,3 +1,7 @@
+> **Kenji's tweaked fork.** This checkout is not stock Open Design. Read `FORK.md` first: it lists
+> every change from upstream, how to run this build (`./od-v0.sh start`), and the commit rules
+> (small additive commits, no trailers). Everything below is upstream's own guide and still applies.
+
 # Directory guide
 
 This file is the single source of truth for agents entering this repository. Read this file first; after entering `apps/`, `packages/`, `tools/`, or `e2e/`, read that layer's `AGENTS.md` for module-level details. Do not copy module details back into the root file; root stays focused on cross-repository boundaries, workflow, and commands.

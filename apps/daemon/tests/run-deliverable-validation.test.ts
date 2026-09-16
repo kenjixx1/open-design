@@ -14,7 +14,7 @@ const temporaryRoots: string[] = [];
 
 async function projectFixture(
   files: Record<string, string>,
-): Promise<{ projectsRoot: string; projectId: string }> {
+): Promise<{ projectsRoot: string; projectId: string; projectRoot: string }> {
   const projectsRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), 'od-deliverable-validation-'),
   );
@@ -27,7 +27,7 @@ async function projectFixture(
     await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.writeFile(target, content, 'utf8');
   }
-  return { projectsRoot, projectId };
+  return { projectsRoot, projectId, projectRoot };
 }
 
 afterEach(async () => {
@@ -407,5 +407,70 @@ describe('project deliverable validation', () => {
       projectId: null,
       projectMetadata: { kind: 'deck' },
     })).resolves.toMatchObject({ valid: false, validation: 'project_missing' });
+  });
+});
+
+
+// A folder-backed repo can narrow the project to its design folders through
+// `.open-design.json` (see project-scope.ts). `listFiles` then never reports a
+// root `index.html`, so root-based entry inference finds nothing and a real run
+// that correctly wrote its page inside the design folder was failed as
+// `entry_missing`. Entry inference has to look where the scope says the design
+// lives.
+describe('scoped design folders', () => {
+  it('prefers index.html inside the first design folder over a stray root page', async () => {
+    const fixture = await projectFixture({
+      '.open-design.json': JSON.stringify({ designFiles: ['Design'] }),
+      'Design/index.html': '<!doctype html><title>Design entry</title>',
+      'Design/Design System - Web.dc.html': '<!doctype html><title>Design system</title>',
+      'index.html': '<!doctype html><title>Stray root page</title>',
+    });
+
+    await expect(validateProjectDeliverable({
+      projectsRoot: fixture.projectsRoot,
+      projectId: fixture.projectId,
+      projectMetadata: { kind: 'prototype', baseDir: fixture.projectRoot },
+    })).resolves.toMatchObject({
+      valid: true,
+      validation: 'valid',
+      entryFile: 'Design/index.html',
+      artifactKind: 'html',
+    });
+  });
+
+  it('keeps root-based inference when the repo declares no scope', async () => {
+    const fixture = await projectFixture({
+      'index.html': '<!doctype html><title>Root entry</title>',
+    });
+
+    await expect(validateProjectDeliverable({
+      projectsRoot: fixture.projectsRoot,
+      projectId: fixture.projectId,
+      projectMetadata: { kind: 'prototype', baseDir: fixture.projectRoot },
+    })).resolves.toMatchObject({
+      valid: true,
+      validation: 'valid',
+      entryFile: 'index.html',
+      artifactKind: 'html',
+    });
+  });
+
+  it('takes the single page directly under the design folder when there is no index', async () => {
+    const fixture = await projectFixture({
+      '.open-design.json': JSON.stringify({ designFiles: ['Design'] }),
+      'Design/Something.dc.html': '<!doctype html><title>Only page</title>',
+      'Design/notes/draft.html': '<!doctype html><title>Nested draft</title>',
+    });
+
+    await expect(validateProjectDeliverable({
+      projectsRoot: fixture.projectsRoot,
+      projectId: fixture.projectId,
+      projectMetadata: { kind: 'prototype', baseDir: fixture.projectRoot },
+    })).resolves.toMatchObject({
+      valid: true,
+      validation: 'valid',
+      entryFile: 'Design/Something.dc.html',
+      artifactKind: 'html',
+    });
   });
 });

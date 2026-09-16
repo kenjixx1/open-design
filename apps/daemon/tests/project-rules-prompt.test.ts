@@ -21,12 +21,21 @@ describe('renderProjectRulesBlock', () => {
     expect(block).toBe(
       '## Project rules (from .open-design.json)\n\n' +
       'Read these files before designing anything:\n- CLAUDE.md\n\n' +
+      'Put every file you create, including the runnable entry (index.html), inside Design/. ' +
+      'Never write to the repo root.\n\n' +
       'Never edit app code.',
     );
     expect(block).not.toContain(root);
   });
+  it('states where files go even when that is all the scope says', () => {
+    expect(renderProjectRulesBlock({ designFiles: ['Design'], readFirst: [], rules: '' }, repo())).toBe(
+      '## Project rules (from .open-design.json)\n\n' +
+      'Put every file you create, including the runnable entry (index.html), inside Design/. ' +
+      'Never write to the repo root.',
+    );
+  });
   it('returns empty when there is nothing to say', () => {
-    expect(renderProjectRulesBlock({ designFiles: ['Design'], readFirst: [], rules: '' }, repo())).toBe('');
+    expect(renderProjectRulesBlock({ designFiles: [], readFirst: [], rules: '' }, repo())).toBe('');
   });
   it('accepts a directory entry as a valid read-first target', () => {
     const root = repo();

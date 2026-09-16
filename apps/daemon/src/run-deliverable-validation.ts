@@ -10,6 +10,7 @@ import type {
 } from '@open-design/contracts';
 
 import { listFiles, resolveProjectDir } from './projects.js';
+import { readFullProjectScope } from './project-scope.js';
 import { findTouchedLinkedPage } from './artifacts/linked-page-delivery.js';
 
 export type RunDeliverableValidation =
@@ -153,6 +154,36 @@ function inferredEntry(
   return files.length === 1 ? files[0] ?? null : null;
 }
 
+/**
+ * The entry a scoped folder-backed repo delivers.
+ *
+ * `.open-design.json` can narrow a repo to its design folders, and `listFiles`
+ * then reports nothing outside them — so root-based inference has no candidate
+ * to find and a run that correctly wrote its page inside the design folder was
+ * failed as `entry_missing`. Look where the scope says the design lives: the
+ * folder's own `index.html` first, else its single page (directly under it, not
+ * nested), taking the design folders in declared order.
+ */
+function scopedDesignEntry(
+  files: ProjectFile[],
+  designFiles: readonly string[] | undefined,
+): ProjectFile | null {
+  if (!designFiles?.length) return null;
+  for (const folder of designFiles) {
+    const prefix = `${folder}/`;
+    const index = files.find((file) => filePath(file) === `${prefix}index.html`);
+    if (index) return index;
+    const direct = files.filter((file) => {
+      const candidate = filePath(file);
+      return candidate.startsWith(prefix)
+        && !candidate.slice(prefix.length).includes('/')
+        && file.kind === 'html';
+    });
+    if (direct.length === 1) return direct[0] ?? null;
+  }
+  return null;
+}
+
 function matchesAcceptedKinds(
   acceptedKinds: ReadonlySet<ProjectFileKind> | null,
   fileKind: ProjectFileKind,
@@ -262,6 +293,7 @@ async function resolveDeliverable(
     return { valid: false, validation: 'project_missing' };
   }
 
+  const scope = await readFullProjectScope(projectRoot);
   const acceptedKinds = acceptedDeliverableKinds(input.projectMetadata);
   const isPrototype = projectKind(input.projectMetadata) === 'prototype';
   const declared = safeRelativeFile(input.projectMetadata?.entryFile);
@@ -271,6 +303,7 @@ async function resolveDeliverable(
   const selected = declared
     ? files.find((file) => filePath(file) === declared) ?? null
     : (baselineEntry ? files.find((file) => filePath(file) === baselineEntry) ?? null : null)
+      ?? scopedDesignEntry(files, scope?.designFiles)
       ?? inferredEntry(files, acceptedKinds);
   if (!selected) {
     return { valid: false, validation: 'entry_missing' };

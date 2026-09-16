@@ -17,7 +17,16 @@ export function renderProjectRulesBlock(scope: ProjectScope, rootDir: string): s
   if (present.length > 0) {
     parts.push('Read these files before designing anything:\n' + present.map((p) => `- ${p}`).join('\n'));
   }
+  // Without this the agent writes its runnable entry to the repo root, where a
+  // scoped project never lists it — the run then fails as `entry_missing`.
+  const placement = scope.designFiles.length > 0
+    ? `Put every file you create, including the runnable entry (index.html), inside ${scope.designFiles[0]}/. `
+      + 'Never write to the repo root.'
+    : '';
+  const placementAfterReadFirst = placement !== '' && parts.length > 0;
+  if (placementAfterReadFirst) parts.push(placement);
   if (scope.rules) parts.push(scope.rules);
+  if (placement !== '' && !placementAfterReadFirst) parts.push(placement);
   if (parts.length === 0) return '';
   return `${PROJECT_RULES_HEADING}\n\n${parts.join('\n\n')}`;
 }

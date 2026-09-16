@@ -1,0 +1,89 @@
+/* The repo setup card (Screen A). Three stacked questions, each with its own
+   label and the daemon's guess already filled in, then the fine print that
+   says exactly what accepting writes. Sized so the whole card fits without
+   scrolling on a laptop; the read-first list is the only part that grows. */
+
+.dialog {
+  width: min(520px, calc(100vw - 32px));
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  color: var(--text-strong, var(--text));
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.newFolder {
+  margin-top: 2px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 2px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  cursor: pointer;
+}
+.row:hover {
+  background: var(--bg-subtle);
+}
+
+.rowPath {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowReason {
+  color: var(--muted, var(--text-muted));
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.addFile {
+  margin-top: 4px;
+}
+
+.loading {
+  margin: 18px 0 0;
+  color: var(--muted, var(--text-muted));
+  font-size: 13px;
+}
+
+.finePrint {
+  margin: 18px 0 0;
+  color: var(--muted, var(--text-muted));
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.actions {
+  margin-top: 20px;
+}

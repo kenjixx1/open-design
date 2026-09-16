@@ -3456,6 +3456,98 @@ export async function replaceProjectWorkingDir(
   return (await resp.json()) as ReplaceProjectWorkingDirResponse;
 }
 
+// ---------------------------------------------------------------------------
+// Repo setup — the three questions asked once, when a repo is pointed at Open
+// Design: where the designs go, what the agent reads first, what the house
+// rules say. The daemon guesses the answers (read-only), the setup card lets
+// the user correct them, and only then is anything written to disk.
+// ---------------------------------------------------------------------------
+
+/** One guessed row in the setup card: a path, why it is proposed, and a tick. */
+export interface SetupSuggestion {
+  path: string;
+  reason: string;
+  checked?: boolean;
+}
+
+/** What `.open-design.json` holds — the answers to the three questions. */
+export interface ProjectSetupScope {
+  designFiles: string[];
+  readFirst: string[];
+  rules: string;
+}
+
+export interface SetupSuggestions {
+  /** True when `.open-design.json` already exists — the card is a re-run. */
+  alreadyConfigured: boolean;
+  /** The scope already on disk, so the card can pre-fill from it. */
+  existing: ProjectSetupScope | null;
+  /** At most 5; the first is the recommendation. */
+  designFolders: SetupSuggestion[];
+  /** At most 8, each with an explicit `checked` default. */
+  readFirst: SetupSuggestion[];
+  rulesDraft: string;
+}
+
+export interface ApplyProjectSetupResponse {
+  ok: true;
+  scope: ProjectSetupScope;
+  /** Repo-relative paths the daemon created or edited. */
+  wrote: string[];
+}
+
+// Guess a folder's setup before asking the user to confirm it. Read-only: the
+// daemon looks at the folder and proposes answers, nothing is written. Takes
+// the same desktop import token the working-dir call made right after will
+// spend — this endpoint only peeks at it, so the token survives.
+export async function fetchProjectSetupSuggestions(
+  baseDir: string,
+  desktopImportToken?: string,
+): Promise<SetupSuggestions> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (desktopImportToken) {
+    headers['x-od-desktop-import-token'] = desktopImportToken;
+  }
+  const resp = await fetch('/api/projects/setup-suggestions', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ baseDir }),
+  });
+  if (!resp.ok) {
+    const body = await readApiErrorBody(resp);
+    throw new Error(body.message);
+  }
+  return (await resp.json()) as SetupSuggestions;
+}
+
+// Write the accepted setup into an existing project's folder:
+// `.open-design.json`, the design folder, and the two `.gitignore` lines for
+// Open Design's scratch folders. Used when the project already exists (the
+// "Edit project rules…" path); project creation carries the same setup on the
+// working-dir call instead, so the folder is only written once.
+export async function applyProjectSetup(
+  projectId: string,
+  setup: ProjectSetupScope,
+  workspaceContext?: WorkspaceCollabContext | null,
+): Promise<ApplyProjectSetupResponse> {
+  const resp = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/setup`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(workspaceContext ? workspaceProjectHeaders(workspaceContext) : {}),
+      },
+      body: JSON.stringify(setup),
+    },
+  );
+  if (!resp.ok) {
+    const body = await readApiErrorBody(resp);
+    throw new Error(body.message);
+  }
+  return (await resp.json()) as ApplyProjectSetupResponse;
+}
+
 // Hand-off (open project in local app). The daemon enumerates installed
 // editors on demand (PATH probe + macOS bundle scan), and the POST
 // endpoint spawns the chosen app with the project's resolvedDir.

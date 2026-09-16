@@ -5625,4 +5625,18 @@ export interface Dict {
   'labs.optOutSkip': string;
   'labs.optOutOtherPlaceholder': string;
   'labs.optOutSubmit': string;
+  // Repo setup card — pointing an existing repo at Open Design.
+  'repoSetup.title': string;
+  'repoSetup.lead': string;
+  'repoSetup.designFolder': string;
+  'repoSetup.createFolder': string;
+  'repoSetup.readFirst': string;
+  'repoSetup.addFile': string;
+  'repoSetup.rules': string;
+  'repoSetup.finePrint': string;
+  'repoSetup.notNow': string;
+  'repoSetup.continue': string;
+  'repoSetup.editMenu': string;
+  'repoSetup.chipDesignsIn': string;
+  'repoSetup.loading': string;
 }

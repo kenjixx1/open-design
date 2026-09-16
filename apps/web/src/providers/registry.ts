@@ -3433,6 +3433,10 @@ export async function replaceProjectWorkingDir(
   baseDir: string,
   desktopImportToken?: string,
   workspaceContext?: WorkspaceCollabContext | null,
+  // Answers to the repo-setup questions collected on Home, before the project
+  // existed. Riding along here means the folder is written exactly once, in
+  // the same call that points the project at it.
+  setup?: ProjectSetupScope,
 ): Promise<ReplaceProjectWorkingDirResponse> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (desktopImportToken) {
@@ -3446,7 +3450,7 @@ export async function replaceProjectWorkingDir(
     {
       method: 'POST',
       headers,
-      body: JSON.stringify({ baseDir }),
+      body: JSON.stringify({ baseDir, ...(setup ? { setup } : {}) }),
     },
   );
   if (!resp.ok) {

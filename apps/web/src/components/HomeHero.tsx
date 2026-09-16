@@ -242,10 +242,14 @@ interface Props {
   showActivePluginChip?: boolean;
   workingDir?: string | null;
   recentDirs?: string[];
+  /** Muted "designs in …" label on the working-dir chip; null hides it. */
+  workingDirSubLabel?: string | null;
   onPickWorkingDir?: () => Promise<string | null> | string | null | void;
   onPickLocalCodeDir?: () => Promise<string | null> | string | null | void;
   onSelectRecentWorkingDir?: (dir: string) => void;
   onClearWorkingDir?: () => void;
+  /** Reopen the repo-setup card; omit to hide the menu item. */
+  onEditWorkingDirRules?: () => void;
   onExamplePromptStatusChange?: (info: ExamplePromptInfo | null) => void;
   // "…or start a blank project" — creates an empty project directly (no dialog,
   // no design system / template / prompt) and enters it. Omit to hide the link.
@@ -370,10 +374,12 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
     showActivePluginChip = true,
     workingDir = null,
     recentDirs = [],
+    workingDirSubLabel = null,
     onPickWorkingDir,
     onPickLocalCodeDir,
     onSelectRecentWorkingDir,
     onClearWorkingDir,
+    onEditWorkingDirRules,
     onExamplePromptStatusChange,
     onStartBlankProject,
     executionSwitcher,
@@ -2089,6 +2095,8 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
               emptyLabel={t('homeWorkingDir.triggerShort')}
               workingDir={workingDir}
               recentDirs={recentDirs}
+              subLabel={workingDirSubLabel}
+              {...(onEditWorkingDirRules ? { onEditRules: onEditWorkingDirRules } : {})}
               onPickDirectory={() => {
                 trackHomeChatComposerClick(analytics.track, {
                   page_name: 'home',

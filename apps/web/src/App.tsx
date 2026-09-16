@@ -43,6 +43,7 @@ import type { IntegrationTab } from './components/IntegrationsView';
 import { MarketplaceView } from './components/MarketplaceView';
 import { PluginDetailView } from './components/PluginDetailView';
 import type { CreateInput, ImportClaudeDesignOutcome } from './components/NewProjectPanel';
+import type { RepoSetup } from './components/RepoSetupDialog';
 import {
   MemoryToast,
   memoryToastSubscriptionMode,
@@ -276,6 +277,8 @@ type AppCreateProjectInput = Omit<CreateInput, 'metadata'> & {
   requestId?: string;
   pendingFiles?: File[];
   userWorkingDirToken?: string;
+  /** Repo setup accepted on Home; written by the working-dir POST. */
+  userWorkingDirSetup?: RepoSetup;
   linkedDirs?: string[] | null;
   onboardingEntry?: OnboardingEntry;
 };
@@ -3145,6 +3148,10 @@ function AppInner() {
               userWorkingDir,
               input.userWorkingDirToken,
               createWorkspaceContext,
+              // The repo setup accepted on Home. The daemon writes it into the
+              // folder right after the move and reports a write failure in the
+              // response body, so it can never undo the folder change.
+              input.userWorkingDirSetup,
             );
           } catch (err) {
             // The desktop working-dir token is short-lived (~60s TTL); if the

@@ -23,6 +23,7 @@ import { localizePluginDescription, localizePluginTitle } from './plugins-home/l
 import type { PluginUseAction } from './plugins-home/useActions';
 import { Icon } from './Icon';
 import { PluginDetailsModal } from './PluginDetailsModal';
+import type { RepoSetup } from './RepoSetupDialog';
 import { TrustBadge } from './TrustBadge';
 import { authorInitials, derivePluginSourceLinks } from '../runtime/plugin-source';
 import { useAnalytics } from '../analytics/provider';
@@ -77,6 +78,11 @@ export interface PluginLoopSubmit {
   // post-creation working-dir POST so the daemon's desktop-auth gate accepts
   // it. Null/absent for web picks (gate inactive) or no selection.
   workingDirToken?: string | null;
+  // Answers to the repo-setup card shown right after `workingDir` was picked.
+  // Ride the same working-dir POST so the folder is written exactly once, by
+  // the daemon, after the project exists. Absent when the user said "Not now"
+  // or the repo was already configured.
+  workingDirSetup?: RepoSetup | null;
   conversationMode?: ChatSessionMode;
   // Files staged on Home before the project exists. App uploads them
   // into the created project's Design Files before the first auto-send.

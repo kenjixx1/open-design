@@ -77,10 +77,13 @@ import {
 import {
   daemonIsLive,
   dirExists,
+  fetchProjectSetupSuggestions,
   fetchRecentLinkedDirs,
   openFolderDialog,
   pushRecentLinkedDir,
+  type SetupSuggestions,
 } from '../providers/registry';
+import { RepoSetupDialog, type RepoSetup } from './RepoSetupDialog';
 import { isOpenDesignHostAvailable, pickHostWorkingDir } from '@open-design/host';
 import type {
   DesignSystemSummary,
@@ -387,6 +390,11 @@ interface HomeComposerChipDraft {
 // directly; the draft key stays as the true-cold-mount fallback.
 const HOME_COMPOSER_SEED_EVENT = 'open-design:home-composer:seed';
 
+/** Folder name of a working directory, for the repo-setup card's title. */
+function workingDirBasename(dir: string): string {
+  return dir.split(/[/\\]/).filter(Boolean).pop() ?? dir;
+}
+
 function readHomeComposerDraft(key: string): string | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -650,6 +658,21 @@ export function HomeView({
   // native dialog. Spent on the post-creation working-dir POST so the
   // daemon's desktop-auth gate accepts the path. Null for web picks.
   const [workingDirToken, setWorkingDirToken] = useState<string | null>(null);
+  // Repo setup — the three questions asked once, right after a folder is
+  // picked: where designs live, what the agent reads first, the house rules.
+  // The accepted answers ride the create payload so the daemon writes
+  // `.open-design.json` in the same working-dir call that moves the project
+  // into the folder; nothing is written from Home, where no project exists yet.
+  const [workingDirSetup, setWorkingDirSetup] = useState<RepoSetup | null>(null);
+  // What the chip says after the folder name ("designs in design"), from the
+  // accepted setup or from the config the repo already had.
+  const [workingDirSubLabel, setWorkingDirSubLabel] = useState<string | null>(null);
+  const [setupSuggestions, setSetupSuggestions] = useState<SetupSuggestions | null>(null);
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [setupDialogOpen, setSetupDialogOpen] = useState(false);
+  // Counts guess requests so a slow answer for a folder the user has already
+  // replaced (or cleared) is dropped instead of opening a card about it.
+  const repoSetupRequestRef = useRef(0);
   // Global design-system selection for the home composer. Persistent and
   // independent of the active plugin / type chip so EVERY product kind (not
   // just prototype/deck) can pick a design system; the choice is forwarded as
@@ -2139,6 +2162,47 @@ export function HomeView({
     setContextWorkspaceItems((current) => current.filter((item) => item.id !== id));
   }
 
+  // Clear everything the repo setup knows, and retire any guess still in
+  // flight. Called when the folder goes away (cleared or replaced) so a new
+  // folder never inherits — or is described by — the old repo's answers.
+  function resetRepoSetup() {
+    repoSetupRequestRef.current += 1;
+    setWorkingDirSetup(null);
+    setWorkingDirSubLabel(null);
+    setSetupSuggestions(null);
+    setSetupDialogOpen(false);
+  }
+
+  // Ask the daemon to guess the folder's setup, then show the card. The guess
+  // is read-only, and the desktop token is only peeked at here — it is still
+  // spent on the working-dir POST after the project exists.
+  async function loadRepoSetup(dir: string, token: string | null) {
+    resetRepoSetup();
+    const request = repoSetupRequestRef.current;
+    setSetupLoading(true);
+    try {
+      const suggestions = await fetchProjectSetupSuggestions(dir, token ?? undefined);
+      // A newer pick (or a clear) has happened while we waited — this answer
+      // describes a folder the composer no longer points at.
+      if (request !== repoSetupRequestRef.current) return;
+      setSetupSuggestions(suggestions);
+      // The repo already answered these questions on disk. Say so on the chip
+      // and leave it alone — re-asking would be a card with nothing to decide.
+      if (suggestions.alreadyConfigured) {
+        setWorkingDirSubLabel(suggestions.existing?.designFiles[0] ?? null);
+        return;
+      }
+      setSetupDialogOpen(true);
+    } catch (err) {
+      if (request !== repoSetupRequestRef.current) return;
+      // Guessing the setup is a convenience, never a gate: a daemon that can't
+      // answer must not cost the user the folder they just picked.
+      console.warn('Failed to load repo setup suggestions', dir, err);
+    } finally {
+      if (request === repoSetupRequestRef.current) setSetupLoading(false);
+    }
+  }
+
   async function handlePickWorkingDir() {
     // On desktop the working-dir POST is gated behind a host-minted token, so
     // pick through the host bridge to capture { baseDir, token } together.
@@ -2148,6 +2212,7 @@ export function HomeView({
         setWorkingDir(result.baseDir);
         setWorkingDirToken(result.token);
         void rememberRecentDir(result.baseDir);
+        void loadRepoSetup(result.baseDir, result.token);
         return result.baseDir;
       }
       // The user explicitly cancelled the host picker — respect that and do
@@ -2172,6 +2237,7 @@ export function HomeView({
       setWorkingDir(picked);
       setWorkingDirToken(null);
       void rememberRecentDir(picked);
+      void loadRepoSetup(picked, null);
       return picked;
     }
     return null;
@@ -2999,6 +3065,7 @@ export function HomeView({
         attachments: stagedFiles,
         ...(workingDir ? { workingDir } : {}),
         ...(workingDirToken ? { workingDirToken } : {}),
+        ...(workingDir && workingDirSetup ? { workingDirSetup } : {}),
         ...(contextLinkedDirs.length > 0 ? { linkedDirs: contextLinkedDirs } : {}),
         conversationMode: sessionMode,
         ...(examplePromptToSend ? { examplePromptContext: examplePromptToSend } : {}),
@@ -3193,6 +3260,12 @@ export function HomeView({
         error={error}
         workingDir={workingDir}
         recentDirs={recentDirs}
+        workingDirSubLabel={
+          workingDirSubLabel ? t('repoSetup.chipDesignsIn', { folder: workingDirSubLabel }) : null
+        }
+        {...(workingDir && (workingDirSetup || setupSuggestions?.existing)
+          ? { onEditWorkingDirRules: () => setSetupDialogOpen(true) }
+          : {})}
         onPickWorkingDir={handlePickWorkingDir}
         onPickLocalCodeDir={handlePickLocalCodeDir}
         onSelectRecentWorkingDir={(dir) => {
@@ -3208,10 +3281,12 @@ export function HomeView({
           setWorkingDir(dir);
           setWorkingDirToken(null);
           void rememberRecentDir(dir);
+          void loadRepoSetup(dir, null);
         }}
         onClearWorkingDir={() => {
           setWorkingDir(null);
           setWorkingDirToken(null);
+          resetRepoSetup();
         }}
         onExamplePromptStatusChange={handleExamplePromptStatusChange}
         onStartBlankProject={() => {
@@ -3405,6 +3480,25 @@ export function HomeView({
           />
         ) : null}
       </AnimatePresence>
+      <RepoSetupDialog
+        open={setupDialogOpen}
+        repoName={workingDir ? workingDirBasename(workingDir) : ''}
+        suggestions={setupSuggestions}
+        loading={setupLoading}
+        initial={workingDirSetup ?? setupSuggestions?.existing ?? null}
+        onContinue={(setup) => {
+          setWorkingDirSetup(setup);
+          setWorkingDirSubLabel(setup.designFiles[0] ?? null);
+          setSetupDialogOpen(false);
+        }}
+        onNotNow={() => {
+          // Nothing is written and nothing rides the create payload — the
+          // folder choice itself stands.
+          setWorkingDirSetup(null);
+          setWorkingDirSubLabel(null);
+          setSetupDialogOpen(false);
+        }}
+      />
       {pendingReplacement ? (
         <Dialog
           backdropClassName="home-hero-confirm__backdrop"

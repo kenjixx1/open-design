@@ -746,12 +746,27 @@ export interface ImportFolderResponse {
 export interface ReplaceProjectWorkingDirRequest {
   baseDir: string;
   orchestratorWorkspace?: OrchestratorWorkspace;
+  /**
+   * Optional one-shot repo setup written into the new folder by the same
+   * request: where designs live, what the agent reads first, the house rules.
+   * Applied only after the working dir has moved, so a write failure is
+   * reported back (see `setupApplied`) instead of undoing the folder change.
+   */
+  setup?: {
+    designFiles: string[];
+    readFirst: string[];
+    rules: string;
+  };
 }
 
 export interface ReplaceProjectWorkingDirResponse {
   project: Project;
   baseDir: string;
   entryFile: string | null;
+  /** Present only when the request carried a `setup`. */
+  setupApplied?: boolean;
+  /** Why the setup could not be written. The working dir still moved. */
+  setupError?: string;
 }
 
 export interface ConversationsResponse {

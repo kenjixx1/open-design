@@ -61,6 +61,19 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* "designs in design" — the repo's setup, secondary to the folder name it
+   follows. The negative margin pulls it back off the trigger's 9px icon gap so
+   it reads as part of the same label instead of a third column. */
+.triggerSubLabel {
+  margin-left: -5px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-muted, var(--text));
+  opacity: 0.7;
+}
 .triggerChevron {
   flex: 0 0 auto;
   opacity: 0.55;

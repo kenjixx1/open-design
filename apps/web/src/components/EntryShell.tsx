@@ -195,6 +195,7 @@ import { NewProjectModal } from './NewProjectModal';
 import { ExtensionsMarketplace } from './PluginsView';
 import type { CreateInput, CreateTab, ImportClaudeDesignOutcome } from './NewProjectPanel';
 import type { PluginLoopSubmit } from './PluginLoopHome';
+import type { RepoSetup } from './RepoSetupDialog';
 import {
   duplicatePluginAsProject,
   patchProject,
@@ -350,6 +351,8 @@ type EntryCreateProjectInput = Omit<CreateInput, 'metadata'> & {
   requestId?: string;
   pendingFiles?: File[];
   userWorkingDirToken?: string;
+  /** Repo setup accepted on Home; written by the working-dir POST. */
+  userWorkingDirSetup?: RepoSetup;
   linkedDirs?: string[] | null;
   onboardingEntry?: OnboardingEntry;
 };
@@ -1562,6 +1565,11 @@ export function EntryShell({
       // gate is active. The pure web build has no gate and no token.
       ...(workingDir && payload.workingDirToken
         ? { userWorkingDirToken: payload.workingDirToken }
+        : {}),
+      // The repo-setup answers travel with the folder they describe, so the
+      // daemon writes `.open-design.json` in the same working-dir call.
+      ...(workingDir && payload.workingDirSetup
+        ? { userWorkingDirSetup: payload.workingDirSetup }
         : {}),
       autoSendFirstMessage: true,
       ...(amrGatePrecheckWitness ? { amrGatePrecheckWitness } : {}),

@@ -22,6 +22,16 @@ interface Props {
   className?: string;
   /** Optional empty-state label for hosts that need a shorter trigger. */
   emptyLabel?: string;
+  /**
+   * Muted second label shown after the folder name — e.g. "designs in design"
+   * once the repo's setup is known. Null hides it.
+   */
+  subLabel?: string | null;
+  /**
+   * Reopen the repo-setup card for the picked folder. Omit to hide the menu
+   * item, which is what the host does while nothing is known about the repo.
+   */
+  onEditRules?: () => void;
   /** The selected directory no longer exists on disk — flag it in red. */
   invalid?: boolean;
   /**
@@ -54,6 +64,8 @@ export function WorkingDirPicker({
   onClear,
   className,
   emptyLabel,
+  subLabel = null,
+  onEditRules,
   placement = 'down',
   invalid = false,
   onOpen,
@@ -107,6 +119,11 @@ export function WorkingDirPicker({
           <span className={styles.triggerLabel}>
             {workingDir ? basename(workingDir) : (emptyLabel ?? t('homeWorkingDir.trigger'))}
           </span>
+          {workingDir && subLabel ? (
+            <span className={styles.triggerSubLabel} data-testid="working-dir-sublabel">
+              {subLabel}
+            </span>
+          ) : null}
           <Icon name="chevron-down" size={14} className={styles.triggerChevron} />
         </button>
       </div>
@@ -179,6 +196,22 @@ export function WorkingDirPicker({
               </div>
             ) : null}
           </div>
+
+          {workingDir && onEditRules ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.item}
+              data-testid="working-dir-edit-rules"
+              onClick={() => {
+                setOpen(false);
+                onEditRules();
+              }}
+            >
+              <Icon name="edit" size={14} className={styles.itemIcon} />
+              <span>{t('repoSetup.editMenu')}</span>
+            </button>
+          ) : null}
 
           {workingDir && onClear ? (
             <button

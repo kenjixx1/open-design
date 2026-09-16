@@ -215,6 +215,7 @@ vi.mock('../../src/components/EntryView', () => ({
             designSystemId: null,
             metadata: { kind: 'prototype', userWorkingDir: '/Users/me/external' },
             userWorkingDirToken: 'wd-token',
+            userWorkingDirSetup: { designFiles: ['design'], readFirst: ['README.md'], rules: '' },
             pendingFiles: [new File(['hi'], 'note.txt', { type: 'text/plain' })],
           })
         }
@@ -2159,11 +2160,14 @@ describe('App project creation routing', () => {
       expect(mockedUploadProjectFiles).toHaveBeenCalledTimes(1);
     });
 
+    // The repo setup accepted on Home rides the same call, so the folder is
+    // written once, by the daemon, right after the project moves into it.
     expect(mockedReplaceProjectWorkingDir).toHaveBeenCalledWith(
       'project-new',
       '/Users/me/external',
       'wd-token',
       createContext,
+      { designFiles: ['design'], readFirst: ['README.md'], rules: '' },
     );
     // Both target the same project id, and the working-dir handoff is ordered
     // strictly before the upload so the files land in the final tree.

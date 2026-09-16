@@ -48,7 +48,7 @@ const FRESH_REPO = {
   existing: null,
   designFolders: [
     { path: 'design', reason: 'existing folder' },
-    { path: 'src/design', reason: 'source tree' },
+    { path: 'design-src', reason: 'source tree' },
   ],
   readFirst: [{ path: 'README.md', reason: 'project intro', checked: true }],
   rulesDraft: 'Use the tokens in theme.css.',
@@ -56,8 +56,8 @@ const FRESH_REPO = {
 
 const CONFIGURED_REPO = {
   alreadyConfigured: true,
-  existing: { designFiles: ['ui/design'], readFirst: ['README.md'], rules: 'Keep it flat.' },
-  designFolders: [{ path: 'ui/design', reason: 'existing folder' }],
+  existing: { designFiles: ['ui-design'], readFirst: ['README.md'], rules: 'Keep it flat.' },
+  designFolders: [{ path: 'ui-design', reason: 'existing folder' }],
   readFirst: [],
   rulesDraft: '',
 };
@@ -122,9 +122,34 @@ describe('Home repo setup after picking a working directory', () => {
     pickFolder();
 
     await waitFor(() => {
-      expect(screen.getByTestId('working-dir-sublabel').textContent).toBe('designs in ui/design');
+      expect(screen.getByTestId('working-dir-sublabel').textContent).toBe('designs in ui-design');
     });
     expect(screen.queryByTestId('repo-setup-dialog')).toBeNull();
+  });
+
+  it('keeps the configured folder on the chip when the re-opened card is dismissed', async () => {
+    // An already-configured repo answers on disk. Opening the card to look and
+    // backing out with "Not now" changes nothing, so the chip must keep naming
+    // the folder the repo already uses instead of falling back to bare.
+    mockedFetchSuggestions.mockResolvedValue(CONFIGURED_REPO);
+    renderHome();
+    pickFolder();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('working-dir-sublabel').textContent).toBe('designs in ui-design');
+    });
+
+    fireEvent.click(screen.getByTestId('working-dir-trigger'));
+    fireEvent.click(screen.getByTestId('working-dir-edit-rules'));
+    await waitFor(() => {
+      expect(screen.getByTestId('repo-setup-dialog')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText('Not now'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('repo-setup-dialog')).toBeNull();
+    });
+    expect(screen.getByTestId('working-dir-sublabel').textContent).toBe('designs in ui-design');
   });
 
   it('keeps the picked folder when the suggestions request fails', async () => {
@@ -214,6 +239,21 @@ describe('Home repo setup after picking a working directory', () => {
     expect(screen.queryByTestId('repo-setup-dialog')).toBeNull();
     // The folder is gone, so the chip is back to its empty state.
     expect(screen.queryByTestId('working-dir-sublabel')).toBeNull();
+
+    // Clearing also retires the spinner: the next card the user opens must
+    // never inherit a "guessing…" state from the folder that went away.
+    mockedFetchSuggestions.mockResolvedValue(CONFIGURED_REPO);
+    pickFolder();
+    await waitFor(() => {
+      expect(screen.getByTestId('working-dir-sublabel').textContent).toBe('designs in ui-design');
+    });
+    fireEvent.click(screen.getByTestId('working-dir-trigger'));
+    fireEvent.click(screen.getByTestId('working-dir-edit-rules'));
+    await waitFor(() => {
+      expect(screen.getByTestId('repo-setup-dialog')).toBeTruthy();
+    });
+    expect(screen.queryByText('Looking at the repo…')).toBeNull();
+    expect(screen.getByTestId('repo-setup-folder')).toBeTruthy();
   });
 
   it('carries the accepted setup in the create payload', async () => {

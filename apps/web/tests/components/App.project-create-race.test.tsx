@@ -2178,6 +2178,36 @@ describe('App project creation routing', () => {
     expect(replaceOrder).toBeLessThan(uploadOrder);
   });
 
+  it('warns but keeps creating when the daemon could not write the repo setup', async () => {
+    // The folder move already succeeded by the time the daemon tries to write
+    // `.open-design.json`, so a setup failure is reported in the response body,
+    // never thrown. Create must carry on — only the warning records the miss.
+    mockedListProjects.mockResolvedValue([]);
+    mockedReplaceProjectWorkingDir.mockResolvedValue(
+      { setupApplied: false, setupError: 'boom' } as never,
+    );
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    stubWorkspaceContext('ws-create', 'wm-create');
+
+    render(<App />);
+    await waitFor(() => {
+      expect(
+        vi.mocked(fetch).mock.calls.some(([input]) =>
+          String(input).includes('/api/workspace/context')),
+      ).toBe(true);
+    });
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Create project with working dir' }),
+    );
+
+    await waitFor(() => {
+      expect(mockedUploadProjectFiles).toHaveBeenCalledTimes(1);
+    });
+    expect(warnSpy).toHaveBeenCalledWith('Repo setup was not written', 'boom');
+    warnSpy.mockRestore();
+  });
+
   it('persists Home context linked dirs into the project create metadata', async () => {
     mockedListProjects.mockResolvedValue([]);
 

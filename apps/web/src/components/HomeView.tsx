@@ -2171,6 +2171,7 @@ export function HomeView({
     setWorkingDirSubLabel(null);
     setSetupSuggestions(null);
     setSetupDialogOpen(false);
+    setSetupLoading(false);
   }
 
   // Ask the daemon to guess the folder's setup, then show the card. The guess
@@ -3493,9 +3494,11 @@ export function HomeView({
         }}
         onNotNow={() => {
           // Nothing is written and nothing rides the create payload — the
-          // folder choice itself stands.
+          // folder choice itself stands. A repo that already answered on disk
+          // keeps naming its folder on the chip: backing out of the card did
+          // not undo what the repo says about itself.
           setWorkingDirSetup(null);
-          setWorkingDirSubLabel(null);
+          setWorkingDirSubLabel(setupSuggestions?.existing?.designFiles[0] ?? null);
           setSetupDialogOpen(false);
         }}
       />

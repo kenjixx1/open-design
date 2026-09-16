@@ -3143,7 +3143,7 @@ function AppInner() {
         let workingDirHandoffFailed = false;
         if (userWorkingDir) {
           try {
-            await replaceProjectWorkingDir(
+            const workingDirResult = await replaceProjectWorkingDir(
               result.project.id,
               userWorkingDir,
               input.userWorkingDirToken,
@@ -3153,6 +3153,13 @@ function AppInner() {
               // response body, so it can never undo the folder change.
               input.userWorkingDirSetup,
             );
+            // The folder move succeeded; only the setup file did not land. Say
+            // so in the console and carry on — the project is usable without
+            // `.open-design.json`, and failing the create here would throw away
+            // a working directory the user already picked.
+            if (workingDirResult?.setupApplied === false) {
+              console.warn('Repo setup was not written', workingDirResult.setupError);
+            }
           } catch (err) {
             // The desktop working-dir token is short-lived (~60s TTL); if the
             // user lingered on Home or the POST was otherwise rejected, the

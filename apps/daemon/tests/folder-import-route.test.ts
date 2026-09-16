@@ -487,6 +487,87 @@ describe('POST /api/import/folder', () => {
     expect(body.error?.message).toMatch(/unsupported field: source_reference/i);
   });
 
+  it('applies the optional setup payload when the working directory is replaced', async () => {
+    const folder = makeFolder();
+    await writeFile(path.join(folder, 'index.html'), '<!doctype html>');
+    const importResp = await importFolder({ baseDir: folder });
+    expect(importResp.status).toBe(200);
+    const { project } = (await importResp.json()) as { project: { id: string } };
+
+    const nextFolder = makeFolder();
+    await writeFile(path.join(nextFolder, 'index.html'), '<!doctype html>');
+    const replaceResp = await fetch(`${baseUrl}/api/projects/${project.id}/working-dir`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        baseDir: nextFolder,
+        setup: { designFiles: ['Design'], rules: 'r' },
+      }),
+    });
+    expect(replaceResp.status).toBe(200);
+    const body = (await replaceResp.json()) as {
+      baseDir: string;
+      setupApplied?: boolean;
+      setupError?: string;
+    };
+    expect(body.setupApplied).toBe(true);
+    expect(body.setupError).toBeUndefined();
+    const root = await realpath(nextFolder);
+    expect(body.baseDir).toBe(root);
+    await expect(stat(path.join(root, '.open-design.json'))).resolves.toBeTruthy();
+    await expect(readFile(path.join(root, '.open-design.json'), 'utf8')).resolves.toContain('"designFiles"');
+    await expect(stat(path.join(root, 'Design'))).resolves.toBeTruthy();
+  });
+
+  it('writes the setup of an already folder-backed project', async () => {
+    const folder = makeFolder();
+    await writeFile(path.join(folder, 'index.html'), '<!doctype html>');
+    const importResp = await importFolder({ baseDir: folder });
+    expect(importResp.status).toBe(200);
+    const { project } = (await importResp.json()) as { project: { id: string } };
+
+    const resp = await fetch(`${baseUrl}/api/projects/${project.id}/setup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ designFiles: ['Design'], readFirst: ['README.md'], rules: 'Be kind.' }),
+    });
+    expect(resp.status).toBe(200);
+    const body = (await resp.json()) as { ok: boolean; scope: unknown; wrote: string[] };
+    expect(body.ok).toBe(true);
+    expect(body.scope).toEqual({
+      designFiles: ['Design'],
+      readFirst: ['README.md'],
+      rules: 'Be kind.',
+    });
+    expect(body.wrote).toContain('.open-design.json');
+    const root = await realpath(folder);
+    await expect(readFile(path.join(root, '.open-design.json'), 'utf8')).resolves.toContain('Be kind.');
+  });
+
+  it('refuses setup for a project with no working directory', async () => {
+    const createResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: `no-folder-${Date.now()}`,
+        name: 'no folder',
+        metadata: { kind: 'prototype' },
+      }),
+    });
+    expect(createResp.status).toBe(200);
+    const { project } = (await createResp.json()) as { project: { id: string } };
+
+    const resp = await fetch(`${baseUrl}/api/projects/${project.id}/setup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ designFiles: ['Design'] }),
+    });
+    expect(resp.status).toBe(400);
+    await expect(resp.json()).resolves.toMatchObject({
+      error: { code: 'PROJECT_NOT_FOLDER_BACKED' },
+    });
+  });
+
   it('requires the exact explicit Workspace member before replacing a bound project working directory', async () => {
     const originalFolder = makeFolder();
     await writeFile(path.join(originalFolder, 'index.html'), '<!doctype html><title>original</title>');

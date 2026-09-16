@@ -38,6 +38,7 @@ import {
   type BuildDeckRenderInputOptions,
 } from './deck-export.js';
 import { readProjectFileVersion } from './project-file-versions.js';
+import { applyProjectSetup, type ProjectSetupInput } from './project-setup.js';
 import { authorizeReasoningEgress, sendReasoningEgressDenial } from './reasoning-egress.js';
 import { sandboxImportedProjectRootUnavailableReason } from './sandbox-mode.js';
 import { parseOrchestratorWorkspace } from './workspace-contract.js';
@@ -217,7 +218,7 @@ export function registerImportRoutes(app: Express, ctx: RegisterImportRoutesDeps
       ) {
         return;
       }
-      const { baseDir, orchestratorWorkspace } = req.body || {};
+      const { baseDir, orchestratorWorkspace, setup } = req.body || {};
       if (typeof baseDir !== 'string' || !baseDir.trim()) {
         return sendApiError(res, 400, 'BAD_REQUEST', 'baseDir required');
       }
@@ -333,9 +334,74 @@ export function registerImportRoutes(app: Express, ctx: RegisterImportRoutesDeps
       // the imported folder's artifacts. Persist an empty saved tab state so
       // ProjectView does not auto-open the detected primary file on hydration.
       setTabs(db, projectId, [], null);
+      // Optional one-shot setup: the picker can say, in the same request, which
+      // folders hold the designs, which files to read first, and the project's
+      // rules. The working directory has already moved by this point, so a
+      // setup failure is reported back, never raised — the user's folder choice
+      // must not be undone because a file could not be written.
+      let setupResult: { applied: boolean; error?: string } | null = null;
+      if (setup && typeof setup === 'object' && !Array.isArray(setup)) {
+        try {
+          const applied = await applyProjectSetup(normalizedPath, setup as ProjectSetupInput);
+          setupResult = applied.ok ? { applied: true } : { applied: false, error: applied.error };
+        } catch (err: any) {
+          setupResult = { applied: false, error: String(err?.message || err) };
+        }
+      }
       /** @type {import('@open-design/contracts').ReplaceProjectWorkingDirResponse} */
-      const body = { project: updated, baseDir: normalizedPath, entryFile };
+      const body = {
+        project: updated,
+        baseDir: normalizedPath,
+        entryFile,
+        ...(setupResult ? { setupApplied: setupResult.applied } : {}),
+        ...(setupResult?.error ? { setupError: setupResult.error } : {}),
+      };
       res.json(body);
+    } catch (err: any) {
+      sendApiError(res, 400, 'BAD_REQUEST', String(err?.message || err));
+    }
+  });
+
+  // Write a folder-backed project's setup (design folders, read-first files,
+  // rules) without moving its working directory — the same work the working-dir
+  // route can do inline, for a project whose folder is already chosen.
+  app.post('/api/projects/:id/setup', async (req, res) => {
+    try {
+      const projectId = req.params.id;
+      const existing = getProject(db, projectId);
+      if (!existing) {
+        return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found');
+      }
+      if (
+        ctx.enforceWorkspaceProjectMutation
+        && !(await ctx.enforceWorkspaceProjectMutation(
+          req,
+          res,
+          sendApiError,
+          getWorkspaceProject,
+          getWorkspaceProjectByProjectId,
+          db,
+          projectId,
+          'writeFiles',
+        ))
+      ) {
+        return;
+      }
+      const projectBaseDir = existing.metadata?.baseDir;
+      if (typeof projectBaseDir !== 'string' || !projectBaseDir.trim()) {
+        return sendApiError(
+          res,
+          400,
+          'PROJECT_NOT_FOLDER_BACKED',
+          'project has no working directory',
+        );
+      }
+      const { designFiles, readFirst, rules } = req.body || {};
+      const result = await applyProjectSetup(projectBaseDir, { designFiles, readFirst, rules });
+      if (!result.ok) {
+        return sendApiError(res, 400, 'BAD_REQUEST', result.error);
+      }
+      res.json({ ok: true, scope: result.scope, wrote: result.wrote });
     } catch (err: any) {
       sendApiError(res, 400, 'BAD_REQUEST', String(err?.message || err));
     }

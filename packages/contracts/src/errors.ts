@@ -74,6 +74,12 @@ export const API_ERROR_CODES = [
   // than silently disabling the agent-specific watchdog.
   'AGENT_RUNTIME_DEF_INVALID',
   'PROJECT_NOT_FOUND',
+  // `POST /api/projects/:id/setup`: the project exists but has no working
+  // directory (`metadata.baseDir`), so there is no folder to write
+  // `.open-design.json`, the design folders, or `.gitignore` into. The caller
+  // must point the project at a folder first (`POST /api/projects/:id/working-dir`)
+  // rather than retry. Not retryable.
+  'PROJECT_NOT_FOLDER_BACKED',
   'PROJECT_MATERIALIZATION_PENDING',
   // Handoff (`POST /api/projects/:id/handoff`): the requested conversation
   // is not in the project, or has no messages to synthesize a handoff from.

@@ -140,6 +140,15 @@ async function runCollector(window: VisualCheckWindow, opts: CollectVisualFactsO
   }
 }
 
+/** Keeps only boxes and media rects whose vertical span intersects [top, bottom). */
+export function filterFactsToBand(facts: PageVisualFacts, top: number, bottom: number): PageVisualFacts {
+  return {
+    ...facts,
+    boxes: facts.boxes.filter((b) => b.y + b.h > top && b.y < bottom),
+    media: facts.media.filter((m) => m.y + m.h > top && m.y < bottom),
+  };
+}
+
 /**
  * Page mode. Order matters: prepare (freeze motion, scroll through to trigger
  * reveals and lazy images), return to the top, measure, then capture tiles.
@@ -156,7 +165,7 @@ export async function capturePageForVisualCheck(
   await deps.nextFrames();
   await deps.preparePage();
   await deps.scrollTo(0);
-  const facts = await runCollector(window, { collectTargets: pageSize.w <= 480, maxBoxes: 400 });
+  const facts = await runCollector(window, { collectTargets: pageSize.w <= 480, maxBoxes: 1500 });
   const measured = Number(await window.webContents.executeJavaScript(DOC_HEIGHT_JS, true));
   const docH = Math.max(pageSize.h, Number.isFinite(measured) ? Math.ceil(measured) : pageSize.h);
   const total = Math.max(1, Math.ceil(docH / pageSize.h));
@@ -177,6 +186,8 @@ export async function capturePageForVisualCheck(
     const image = await window.webContents.capturePage({ height: band.height, width: pageSize.w, x: 0, y: band.top });
     slideFiles.push(await writePng(outputDir, `screen-${p + 1}.png`, image, pageSize.w));
   }
+  const bandTop = indices[0]! * pageSize.h;
+  const bandBottom = (indices[indices.length - 1]! + 1) * pageSize.h;
   return {
     height: pageSize.h,
     indices,
@@ -185,7 +196,7 @@ export async function capturePageForVisualCheck(
     slideFiles,
     total,
     width: pageSize.w,
-    ...(facts ? { visualFacts: { ...facts, consoleErrors: [...consoleErrors] } } : {}),
+    ...(facts ? { visualFacts: { ...filterFactsToBand(facts, bandTop, bandBottom), consoleErrors: [...consoleErrors] } } : {}),
   };
 }
 

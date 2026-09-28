@@ -15,7 +15,7 @@ afterEach(async () => {
 });
 
 const PAGE_FACTS = {
-  boxes: [], brokenImages: [{ selector: 'img.logo', src: 'logo.png' }], consoleErrors: [], images: [], targets: [],
+  boxes: [], brokenImages: [{ selector: 'img.logo', src: 'logo.png' }], consoleErrors: [], images: [], media: [], targets: [],
   document: { paintedElements: 3, scrollHeight: 3000, scrollWidth: 1440, visibleTextChars: 100 },
   viewport: { height: 1000, width: 1440 },
 };
@@ -40,6 +40,7 @@ async function fixture(opts: {
   const minted: string[] = [];
   const revoked: string[] = [];
   const inputs: DesktopRenderSlidesInput[] = [];
+  let available = opts.available ?? true;
   const defaultRender = async (input: DesktopRenderSlidesInput): Promise<DesktopRenderSlidesResult> => {
     inputs.push(input);
     const files = [0, 1, 2].map((i) => path.join(input.outputDir!, `screen-${i + 1}.png`));
@@ -55,7 +56,7 @@ async function fixture(opts: {
     authorizeToolRequest: (_req, _res, op) => (op === 'visual-check:run' ? { runId: 'run-1', projectId } : null),
     authorizeProjectToolRequest: async () => ({ workspace: null }),
     getProject: () => ({ metadata: { kind: opts.kind ?? 'prototype', entryFile: opts.entryFile ?? 'index.html' } }),
-    isAvailable: async () => opts.available ?? true,
+    isAvailable: async () => available,
     renderSlides: async (input) => {
       if (opts.render) {
         inputs.push(input);
@@ -77,7 +78,7 @@ async function fixture(opts: {
     await handler!({ body } as Request, res, () => {});
     return { status, body: json };
   };
-  return { call, inputs, minted, revoked, dataRoot };
+  return { call, inputs, minted, revoked, dataRoot, setAvailable: (v: boolean) => { available = v; } };
 }
 
 describe('tool token lists', () => {
@@ -132,6 +133,15 @@ describe('visual-check route', () => {
     expect(t.inputs).toHaveLength(0);
   });
 
+  it('does not spend look budget while the renderer is unavailable', async () => {
+    const t = await fixture({ available: false });
+    expect((await t.call()).body).toMatchObject({ ok: false, code: 'RENDERER_UNAVAILABLE' });
+    t.setAvailable(true);
+    const results = [(await t.call()).body, (await t.call()).body, (await t.call()).body];
+    expect(results.every((b) => b.ok)).toBe(true);
+    expect(results.map((b) => b.looksLeft)).toEqual([2, 1, 0]);
+  });
+
   it('rejects non-HTML, missing, and escaping files', async () => {
     const t = await fixture({ files: { 'index.html': '<p>x</p>', 'notes.md': '# x' } });
     expect((await t.call({ file: 'notes.md' })).body).toMatchObject({ ok: false, code: 'NOT_HTML' });
@@ -160,6 +170,27 @@ describe('visual-check route', () => {
     expect(body.images[0]).toMatchObject({ kind: 'slide', n: 1 });
     expect(t.inputs[0]).toMatchObject({ deck: true });
     expect(t.inputs[0]!.width).toBeUndefined();
+  });
+
+  it('reports the deck render width instead of the fixed default', async () => {
+    const t = await fixture({
+      files: { 'deck.html': '<html data-od-deck-protocol="1"><body></body></html>' },
+      entryFile: 'deck.html',
+      render: async (input) => {
+        const files = Array.from({ length: 12 }, (_, i) => path.join(input.outputDir!, `slide-${i + 1}.png`));
+        for (const f of files) await fs.writeFile(f, 'png');
+        return { ok: true, mode: 'deck', slideFiles: files, indices: files.map((_, i) => i), total: 12, width: 1920 };
+      },
+    });
+    const { body } = await t.call();
+    expect(body).toMatchObject({ ok: true, mode: 'deck', width: 1920 });
+  });
+
+  it('treats a non-zero range start as a later batch and skips page-wide issue kinds', async () => {
+    const t = await fixture();
+    const { body } = await t.call({ range: { start: 6, count: 6 } });
+    expect(body.ok).toBe(true);
+    expect(body.issues.map((i: any) => i.kind)).not.toContain('broken-image');
   });
 
   it('removes the folder and reports RENDER_FAILED when the renderer fails', async () => {

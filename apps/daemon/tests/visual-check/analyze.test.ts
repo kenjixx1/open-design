@@ -129,6 +129,25 @@ describe('analyzeVisualFacts errors', () => {
     expect(overlaps[0]!.selector).toContain('h1');
   });
 
+  it('skips page-wide issue kinds outside the first batch, but still reports clipped text', () => {
+    const clipped = box({ selector: '.card', clipsY: true, scrollH: 140, clientH: 100 });
+    const r = analyzeVisualFacts({
+      mode: 'page', width: 1440, firstBatch: false,
+      facts: facts({
+        document: { paintedElements: 0, scrollHeight: 1000, scrollWidth: 1580, visibleTextChars: 0 },
+        brokenImages: [{ selector: 'img.logo', src: 'logo.png' }],
+        consoleErrors: ['Uncaught ReferenceError: slider is not defined'],
+        boxes: [
+          clipped,
+          box({ fontFamily: 'a' }), box({ fontFamily: 'b' }), box({ fontFamily: 'c' }), box({ fontFamily: 'd' }),
+        ],
+      }),
+    });
+    expect(kinds(r.issues)).not.toEqual(expect.arrayContaining(['blank-page', 'horizontal-overflow', 'broken-image', 'console-error']));
+    expect(kinds(r.improvements)).not.toContain('too-many-fonts');
+    expect(kinds(r.issues)).toContain('clipped-text');
+  });
+
   it('drops console noise from the data: URL load and keeps real errors as warnings', () => {
     const r = page(facts({
       consoleErrors: [

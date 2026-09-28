@@ -10,6 +10,10 @@ export interface AnalyzeVisualFactsInput {
   facts: DesktopVisualFacts;
   mode: 'page' | 'deck';
   width: number;
+  // Whether this batch starts at the top of the page/deck. Page-wide kinds
+  // (blank-page, horizontal-overflow, broken-image, console-error,
+  // too-many-fonts) only make sense once, on the first batch. Default true.
+  firstBatch?: boolean;
 }
 
 export interface AnalyzeVisualFactsResult {
@@ -46,6 +50,7 @@ function isAncestor(boxes: Map<number, DesktopVisualBox>, maybeAncestor: number,
 
 export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisualFactsResult {
   const { facts, mode } = input;
+  const firstBatch = input.firstBatch ?? true;
   const vw = facts.viewport.width;
   const all: VisualCheckIssue[] = [];
   const counts = new Map<VisualCheckIssueKind, number>();
@@ -59,11 +64,11 @@ export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisua
   const byId = new Map(facts.boxes.map((b) => [b.id, b]));
 
   // --- errors ---
-  if (facts.document.visibleTextChars === 0 && facts.document.paintedElements === 0) {
+  if (firstBatch && facts.document.visibleTextChars === 0 && facts.document.paintedElements === 0) {
     add('blank-page', 'error', 'body', 'The page shows no text and no images.');
   }
 
-  if (mode === 'page' && facts.document.scrollWidth > vw + 1) {
+  if (firstBatch && mode === 'page' && facts.document.scrollWidth > vw + 1) {
     const offenders = textBoxes
       .filter((b) => b.x + b.w > vw + 1 && !b.insideScroller)
       .sort((a, b) => b.x + b.w - (a.x + a.w));
@@ -86,8 +91,10 @@ export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisua
     }
   }
 
-  for (const img of facts.brokenImages) {
-    add('broken-image', 'error', img.selector, `The image ${img.src} did not load.`);
+  if (firstBatch) {
+    for (const img of facts.brokenImages) {
+      add('broken-image', 'error', img.selector, `The image ${img.src} did not load.`);
+    }
   }
 
   for (const b of textBoxes) {
@@ -118,9 +125,11 @@ export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisua
     }
   }
 
-  for (const msg of facts.consoleErrors) {
-    if (CONSOLE_NOISE_RE.test(msg)) continue;
-    add('console-error', 'warning', 'console', `The page logged an error: ${msg}`);
+  if (firstBatch) {
+    for (const msg of facts.consoleErrors) {
+      if (CONSOLE_NOISE_RE.test(msg)) continue;
+      add('console-error', 'warning', 'console', `The page logged an error: ${msg}`);
+    }
   }
 
   // --- improvements ---
@@ -159,7 +168,7 @@ export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisua
   }
 
   const families = [...new Set(textBoxes.map((b) => b.fontFamily).filter(Boolean))];
-  if (families.length > 3) {
+  if (firstBatch && families.length > 3) {
     add('too-many-fonts', 'suggestion', 'body', `The page uses ${families.length} fonts (${families.join(', ')}); 2 or 3 look calmer.`);
   }
 

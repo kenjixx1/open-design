@@ -195,8 +195,12 @@ export function registerVisualCheckToolRoutes(app: Express, deps: RegisterVisual
       n: (indices[i] ?? i) + 1,
       path: p,
     }));
+    // The budget key stays keyed on the requested width; decks report the
+    // actual render width (which decks always fix to their own stage size).
+    const reportedWidth = deck ? rendered.width ?? DEFAULT_WIDTH : width;
+    const firstBatch = (parsed.range?.start ?? 0) === 0;
     const analysis = rendered.visualFacts
-      ? analyzeVisualFacts({ facts: rendered.visualFacts, mode, width })
+      ? analyzeVisualFacts({ facts: rendered.visualFacts, mode, width: reportedWidth, firstBatch })
       : { issues: [], improvements: [] };
 
     void pruneVisualChecks(deps.visualChecksRoot).catch(() => {});
@@ -206,7 +210,7 @@ export function registerVisualCheckToolRoutes(app: Express, deps: RegisterVisual
       schema: VISUAL_CHECK_TOOL_SCHEMA,
       file,
       mode,
-      width,
+      width: reportedWidth,
       images,
       checklist: rendered.visualFacts ? 'measured' : 'unavailable',
       issues: analysis.issues,

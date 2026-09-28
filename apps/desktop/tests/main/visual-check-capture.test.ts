@@ -10,6 +10,7 @@ import {
   capturePageForVisualCheck,
   captureDeckForVisualCheck,
   collectorScript,
+  filterFactsToBand,
   mergeDeckFacts,
   recordConsoleError,
   type CapturedImageLike,
@@ -113,6 +114,22 @@ describe('collectorScript', () => {
     expect(script.endsWith('({"collectTargets":false,"maxBoxes":400})')).toBe(true);
     // Compiles without running (the body touches `window`/`document`).
     expect(() => new Function(script)).not.toThrow();
+  });
+});
+
+describe('filterFactsToBand', () => {
+  function boxAt(y: number, h = 20): PageVisualFacts['boxes'][number] {
+    return { animatedChildren: false, background: [255, 255, 255, 1], bgImageBehind: false, clientH: h, clientW: 100, clipsX: false, clipsY: false, color: [0, 0, 0, 1], ellipsis: false, fontFamily: 'Inter', fontSize: 16, fontWeight: 400, h, id: 0, insideScroller: false, parent: null, scrollH: h, scrollW: 100, selector: 'p', slide: null, text: 'x', textW: 100, textX: 10, w: 100, x: 10, y };
+  }
+
+  it('keeps boxes intersecting the band and drops boxes outside it', () => {
+    const f = facts({
+      boxes: [boxAt(100), boxAt(1200), boxAt(2500), boxAt(900, 200)],
+      media: [{ h: 20, w: 20, x: 0, y: 100 }, { h: 20, w: 20, x: 0, y: 1200 }],
+    });
+    const out = filterFactsToBand(f, 1000, 2000);
+    expect(out.boxes.map((b) => b.y)).toEqual([1200, 900]);
+    expect(out.media.map((m) => m.y)).toEqual([1200]);
   });
 });
 

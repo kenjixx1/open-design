@@ -79,6 +79,27 @@ describe('analyzeVisualFacts errors', () => {
     expect(r.issues.filter((i) => i.severity === 'error').map((i) => i.kind).sort()).toEqual(['broken-image', 'placeholder-text']);
   });
 
+  it('does not flag lowercase "todo" occurring in real content', () => {
+    const r = page(facts({
+      boxes: [
+        box({ text: 'Add a todo' }),
+        box({ text: 'My Todo list' }),
+        box({ text: 'Date: tbd' }),
+      ],
+    }));
+    expect(r.issues.filter((i) => i.kind === 'placeholder-text')).toHaveLength(0);
+  });
+
+  it('flags cased TODO/TBD markers and lorem ipsum as placeholder text', () => {
+    const r = page(facts({
+      boxes: [
+        box({ text: 'TODO: hero copy' }),
+        box({ text: 'Lorem ipsum dolor' }),
+      ],
+    }));
+    expect(r.issues.filter((i) => i.kind === 'placeholder-text')).toHaveLength(2);
+  });
+
   it('flags clipped text unless it is an ellipsis or an animated carousel', () => {
     const r = page(facts({
       boxes: [

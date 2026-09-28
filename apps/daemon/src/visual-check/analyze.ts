@@ -2,7 +2,8 @@ import type { VisualCheckIssue, VisualCheckIssueKind, VisualCheckSeverity } from
 import type { DesktopVisualBox, DesktopVisualColor, DesktopVisualFacts } from '@open-design/sidecar-proto';
 
 const MAX_PER_KIND = 5;
-const PLACEHOLDER_RE = /\blorem ipsum\b|\bTODO\b|\bTBD\b|\[image\]|your text here|placeholder text/i;
+const PLACEHOLDER_CASED_RE = /\bTODO\b|\bTBD\b/;
+const PLACEHOLDER_TEXT_RE = /\blorem ipsum\b|\[image\]|your text here|placeholder text/i;
 const CONSOLE_NOISE_RE = /SecurityError|localStorage|sessionStorage|service ?worker|document\.domain/i;
 
 export interface AnalyzeVisualFactsInput {
@@ -90,7 +91,7 @@ export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisua
   }
 
   for (const b of textBoxes) {
-    if (PLACEHOLDER_RE.test(b.text)) add('placeholder-text', 'error', b.selector, 'Placeholder text is still on the page.', b.text);
+    if (PLACEHOLDER_CASED_RE.test(b.text) || PLACEHOLDER_TEXT_RE.test(b.text)) add('placeholder-text', 'error', b.selector, 'Placeholder text is still on the page.', b.text);
   }
 
   for (const b of facts.boxes) {

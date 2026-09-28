@@ -91,8 +91,9 @@ export function mergeDeckFacts(
   let scrollWidth = 0;
   let scrollHeight = 0;
   for (const { facts, index } of perSlide) {
+    const slideOffset = offset;
     for (const b of facts.boxes) {
-      boxes.push({ ...b, id: b.id + offset, parent: b.parent == null ? null : b.parent + offset, slide: index });
+      boxes.push({ ...b, id: b.id + slideOffset, parent: b.parent == null ? null : b.parent + slideOffset, slide: index });
     }
     offset += facts.boxes.length;
     for (const img of facts.brokenImages) {
@@ -103,7 +104,9 @@ export function mergeDeckFacts(
       }
     }
     for (const img of facts.images) if (images.length < 40) images.push(img);
-    for (const m of facts.media) if (media.length < 100) media.push(m);
+    for (const m of facts.media) {
+      if (media.length < 100) media.push({ ...m, contains: m.contains.map((id) => id + slideOffset) });
+    }
     for (const t of facts.targets) if (targets.length < 60) targets.push(t);
     visibleTextChars += facts.document.visibleTextChars;
     paintedElements += facts.document.paintedElements;

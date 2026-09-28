@@ -137,6 +137,7 @@ export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisua
     const area = b.w * b.h;
     if (area <= 0) return false;
     for (const m of facts.media) {
+      if (m.contains.includes(b.id)) continue; // the box is inside this media element; use its own backgroundOf() instead
       const ix = Math.min(b.x + b.w, m.x + m.w) - Math.max(b.x, m.x);
       const iy = Math.min(b.y + b.h, m.y + m.h) - Math.max(b.y, m.y);
       if (ix <= 0 || iy <= 0) continue;

@@ -113,7 +113,9 @@ export function collectVisualFactsInPage(opts: CollectVisualFactsOptions): PageV
 
   const ids = new Map<Element, number>();
   const boxes: DesktopVisualBox[] = [];
+  const boxEls: Element[] = [];
   const media: PageVisualFacts["media"] = [];
+  const mediaEls: Element[] = [];
   let visibleTextChars = 0;
   let paintedElements = 0;
   const skip = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "HEAD", "META", "LINK"]);
@@ -138,7 +140,8 @@ export function collectVisualFactsInPage(opts: CollectVisualFactsOptions): PageV
       && rect.width * rect.height >= 2500
       && media.length < 100
     ) {
-      media.push({ h: Math.round(rect.height), w: Math.round(rect.width), x: Math.round(rect.left), y: Math.round(rect.top) });
+      media.push({ contains: [], h: Math.round(rect.height), w: Math.round(rect.width), x: Math.round(rect.left), y: Math.round(rect.top) });
+      mediaEls.push(el);
     }
     if (rect.width <= 2 || rect.height <= 2) continue;
     if (cs.clip && cs.clip !== "auto") continue;
@@ -191,6 +194,16 @@ export function collectVisualFactsInPage(opts: CollectVisualFactsOptions): PageV
       x: Math.round(rect.left),
       y: Math.round(rect.top),
     });
+    boxEls.push(el);
+  }
+
+  for (let i = 0; i < mediaEls.length; i++) {
+    const mediaEl = mediaEls[i]!;
+    const contains = media[i]!.contains;
+    for (let j = 0; j < boxEls.length; j++) {
+      if (contains.length >= 1500) break;
+      if (mediaEl.contains(boxEls[j]!)) contains.push(j);
+    }
   }
 
   const brokenImages: PageVisualFacts["brokenImages"] = [];

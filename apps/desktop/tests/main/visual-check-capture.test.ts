@@ -125,11 +125,12 @@ describe('filterFactsToBand', () => {
   it('keeps boxes intersecting the band and drops boxes outside it', () => {
     const f = facts({
       boxes: [boxAt(100), boxAt(1200), boxAt(2500), boxAt(900, 200)],
-      media: [{ h: 20, w: 20, x: 0, y: 100 }, { h: 20, w: 20, x: 0, y: 1200 }],
+      media: [{ h: 20, w: 20, x: 0, y: 100, contains: [0] }, { h: 20, w: 20, x: 0, y: 1200, contains: [2, 3] }],
     });
     const out = filterFactsToBand(f, 1000, 2000);
     expect(out.boxes.map((b) => b.y)).toEqual([1200, 900]);
     expect(out.media.map((m) => m.y)).toEqual([1200]);
+    expect(out.media.map((m) => m.contains)).toEqual([[2, 3]]);
   });
 });
 
@@ -160,6 +161,17 @@ describe('mergeDeckFacts', () => {
   });
   it('returns undefined when no slide produced facts', () => {
     expect(mergeDeckFacts([], { w: 1920, h: 1080 }, [])).toBeUndefined();
+  });
+  it('offsets media contains ids the same way it offsets box ids', () => {
+    const merged = mergeDeckFacts(
+      [
+        { index: 2, facts: facts({ media: [{ h: 20, w: 20, x: 0, y: 0, contains: [1] }] }) },
+        { index: 3, facts: facts({ media: [{ h: 20, w: 20, x: 0, y: 0, contains: [0] }] }) },
+      ],
+      { w: 1920, h: 1080 },
+      [],
+    )!;
+    expect(merged.media.map((m) => m.contains)).toEqual([[1], [2]]);
   });
 });
 

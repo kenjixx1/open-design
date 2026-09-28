@@ -304,7 +304,14 @@ export type PageVisualFacts = {
   document: { paintedElements: number; scrollHeight: number; scrollWidth: number; visibleTextChars: number };
   images: Array<{ drawnH: number; drawnW: number; naturalH: number; naturalW: number; selector: string }>;
   // Visible IMG/VIDEO/CANVAS/PICTURE/SVG and background-image elements of at least 2500 px².
-  media: Array<{ h: number; w: number; x: number; y: number }>;
+  media: Array<{
+    h: number;
+    w: number;
+    x: number;
+    y: number;
+    // Box ids inside this element; such boxes use their own backgroundOf() result instead.
+    contains: number[];
+  }>;
   targets: Array<{ h: number; selector: string; w: number }>;
   viewport: { height: number; width: number };
 };

@@ -181,16 +181,25 @@ describe('analyzeVisualFacts improvements', () => {
     const inside = box({ selector: '.hero h2', color: [160, 160, 160, 1], x: 100, y: 100, w: 200, h: 20 });
     const r1 = page(facts({
       boxes: [inside],
-      media: [{ x: 0, y: 0, w: 1440, h: 400 }],
+      media: [{ x: 0, y: 0, w: 1440, h: 400, contains: [] }],
     }));
     expect(kinds(r1.improvements)).not.toContain('low-contrast');
 
     const elsewhere = box({ selector: '.price', color: [160, 160, 160, 1], x: 100, y: 100, w: 200, h: 20 });
     const r2 = page(facts({
       boxes: [elsewhere],
-      media: [{ x: 900, y: 900, w: 100, h: 100 }],
+      media: [{ x: 900, y: 900, w: 100, h: 100, contains: [] }],
     }));
     expect(kinds(r2.improvements)).toContain('low-contrast');
+  });
+
+  it('does not suppress contrast when the covering media rect is an ancestor of the text (a card on a gradient)', () => {
+    const card = box({ selector: '.card p', color: [160, 160, 160, 1], background: [255, 255, 255, 1], x: 100, y: 100, w: 200, h: 20 });
+    const r = page(facts({
+      boxes: [card],
+      media: [{ x: 0, y: 0, w: 1440, h: 400, contains: [card.id] }],
+    }));
+    expect(kinds(r.improvements)).toContain('low-contrast');
   });
 
   it('suggests bigger text, shorter lines, fewer fonts', () => {

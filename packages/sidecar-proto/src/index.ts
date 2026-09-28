@@ -289,6 +289,9 @@ export type DesktopVisualBox = {
   selector: string;
   slide: number | null;
   text: string;
+  // Left edge and width of the element's own text in CSS px; padding excluded.
+  textX: number;
+  textW: number;
   w: number;
   x: number;
   y: number;

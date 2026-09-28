@@ -36,8 +36,8 @@ function fakeImage(width: number, height: number): CapturedImageLike {
 function facts(overrides: Partial<PageVisualFacts> = {}): PageVisualFacts {
   return {
     boxes: [
-      { animatedChildren: false, background: [255, 255, 255, 1], bgImageBehind: false, clientH: 20, clientW: 100, clipsX: false, clipsY: false, color: [0, 0, 0, 1], ellipsis: false, fontFamily: 'Inter', fontSize: 16, fontWeight: 400, h: 20, id: 0, insideScroller: false, parent: null, scrollH: 20, scrollW: 100, selector: 'h1', slide: null, text: 'Hello', w: 100, x: 10, y: 10 },
-      { animatedChildren: false, background: [255, 255, 255, 1], bgImageBehind: false, clientH: 20, clientW: 100, clipsX: false, clipsY: false, color: [0, 0, 0, 1], ellipsis: false, fontFamily: 'Inter', fontSize: 16, fontWeight: 400, h: 20, id: 1, insideScroller: false, parent: 0, scrollH: 20, scrollW: 100, selector: 'h1 > span', slide: null, text: 'World', w: 100, x: 10, y: 10 },
+      { animatedChildren: false, background: [255, 255, 255, 1], bgImageBehind: false, clientH: 20, clientW: 100, clipsX: false, clipsY: false, color: [0, 0, 0, 1], ellipsis: false, fontFamily: 'Inter', fontSize: 16, fontWeight: 400, h: 20, id: 0, insideScroller: false, parent: null, scrollH: 20, scrollW: 100, selector: 'h1', slide: null, text: 'Hello', textW: 100, textX: 10, w: 100, x: 10, y: 10 },
+      { animatedChildren: false, background: [255, 255, 255, 1], bgImageBehind: false, clientH: 20, clientW: 100, clipsX: false, clipsY: false, color: [0, 0, 0, 1], ellipsis: false, fontFamily: 'Inter', fontSize: 16, fontWeight: 400, h: 20, id: 1, insideScroller: false, parent: 0, scrollH: 20, scrollW: 100, selector: 'h1 > span', slide: null, text: 'World', textW: 100, textX: 10, w: 100, x: 10, y: 10 },
     ],
     brokenImages: [{ selector: 'img.logo', src: 'logo.png' }],
     document: { paintedElements: 3, scrollHeight: 2500, scrollWidth: 1440, visibleTextChars: 10 },

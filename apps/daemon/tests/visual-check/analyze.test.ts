@@ -5,13 +5,14 @@ import { analyzeVisualFacts, contrastRatio } from '../../src/visual-check/analyz
 
 let nextId = 0;
 function box(o: Partial<DesktopVisualBox> = {}): DesktopVisualBox {
-  return {
-    animatedChildren: false, background: [255, 255, 255, 1], bgImageBehind: false,
-    clientH: 20, clientW: 200, clipsX: false, clipsY: false, color: [0, 0, 0, 1], ellipsis: false,
+  const merged = {
+    animatedChildren: false, background: [255, 255, 255, 1] as [number, number, number, number] | null, bgImageBehind: false,
+    clientH: 20, clientW: 200, clipsX: false, clipsY: false, color: [0, 0, 0, 1] as [number, number, number, number] | null, ellipsis: false,
     fontFamily: 'inter', fontSize: 16, fontWeight: 400, h: 20, id: nextId++, insideScroller: false,
-    parent: null, scrollH: 20, scrollW: 200, selector: 'p', slide: null, text: 'Hello there',
+    parent: null as number | null, scrollH: 20, scrollW: 200, selector: 'p', slide: null as number | null, text: 'Hello there',
     w: 200, x: 100, y: 100, ...o,
   };
+  return { ...merged, textX: o.textX ?? merged.x, textW: o.textW ?? merged.w };
 }
 function facts(o: Partial<DesktopVisualFacts> = {}): DesktopVisualFacts {
   return {
@@ -192,6 +193,25 @@ describe('analyzeVisualFacts improvements', () => {
       boxes: [box({ selector: 'h1', x: 2 })],
     }));
     expect(kinds(r.improvements)).toEqual(expect.arrayContaining(['blurry-image', 'edge-crowding']));
+  });
+
+  it('measures edge-crowding against the text extent, not the padded box', () => {
+    const r1 = page(facts({
+      boxes: [box({ selector: '.banner', x: 0, w: 1440, textX: 520, textW: 400 })],
+    }));
+    expect(kinds(r1.improvements)).not.toContain('edge-crowding');
+
+    const r2 = page(facts({
+      boxes: [box({ selector: '.banner', x: 0, w: 1440, textX: 2, textW: 400 })],
+    }));
+    expect(kinds(r2.improvements)).toContain('edge-crowding');
+  });
+
+  it('measures long-lines against the text extent, not the padded box', () => {
+    const r = page(facts({
+      boxes: [box({ selector: '.story p', w: 1200, textW: 600, fontSize: 16, text: 'x'.repeat(120) })],
+    }));
+    expect(kinds(r.improvements)).not.toContain('long-lines');
   });
 
   it('checks tap targets only at phone width', () => {

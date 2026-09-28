@@ -90,6 +90,27 @@ export function collectVisualFactsInPage(opts: CollectVisualFactsOptions): PageV
     return false;
   }
 
+  function textExtent(el: Element, rect: DOMRect, cs: CSSStyleDeclaration): { w: number; x: number } {
+    const range = document.createRange();
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (let n = el.firstChild; n; n = n.nextSibling) {
+      if (n.nodeType !== 3 || !(n.nodeValue ?? "").trim()) continue;
+      range.selectNodeContents(n);
+      for (const r of Array.from(range.getClientRects())) {
+        if (r.width < 1) continue;
+        minX = Math.min(minX, r.left);
+        maxX = Math.max(maxX, r.right);
+      }
+    }
+    if (minX === Infinity) {
+      const pl = parseFloat(cs.paddingLeft) || 0;
+      const pr = parseFloat(cs.paddingRight) || 0;
+      return { w: Math.max(0, Math.round(rect.width - pl - pr)), x: Math.round(rect.left + pl) };
+    }
+    return { w: Math.round(maxX - minX), x: Math.round(minX) };
+  }
+
   const ids = new Map<Element, number>();
   const boxes: DesktopVisualBox[] = [];
   const media: PageVisualFacts["media"] = [];
@@ -119,6 +140,9 @@ export function collectVisualFactsInPage(opts: CollectVisualFactsOptions): PageV
     ) {
       media.push({ h: Math.round(rect.height), w: Math.round(rect.width), x: Math.round(rect.left), y: Math.round(rect.top) });
     }
+    if (rect.width <= 2 || rect.height <= 2) continue;
+    if (cs.clip && cs.clip !== "auto") continue;
+    if (cs.clipPath && cs.clipPath !== "none") continue;
     const own = ownText(el);
     visibleTextChars += own.length;
     const clipsX = cs.overflowX === "hidden" || cs.overflowX === "clip";
@@ -137,6 +161,7 @@ export function collectVisualFactsInPage(opts: CollectVisualFactsOptions): PageV
     }
     const bg = backgroundOf(el);
     const id = boxes.length;
+    const extent = textExtent(el, rect, cs);
     ids.set(el, id);
     boxes.push({
       animatedChildren: hasAnimatedChildren(el),
@@ -160,6 +185,8 @@ export function collectVisualFactsInPage(opts: CollectVisualFactsOptions): PageV
       selector: selectorOf(el),
       slide: null,
       text: (own || clipText).slice(0, 120),
+      textW: extent.w,
+      textX: extent.x,
       w: Math.round(rect.width),
       x: Math.round(rect.left),
       y: Math.round(rect.top),

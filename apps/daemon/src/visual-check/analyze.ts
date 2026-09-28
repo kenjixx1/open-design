@@ -154,7 +154,7 @@ export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisua
 
   for (const b of textBoxes) {
     if (b.fontSize <= 0 || b.text.length < 100) continue;
-    const perLine = Math.round(b.w / (b.fontSize * 0.5));
+    const perLine = Math.round(b.textW / (b.fontSize * 0.5));
     if (perLine > 90) add('long-lines', 'suggestion', b.selector, `About ${perLine} letters fit on one line; aim for under 90.`, b.text);
   }
 
@@ -172,8 +172,8 @@ export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisua
 
   if (mode === 'page') {
     for (const b of textBoxes) {
-      if (b.x < 0 || b.x + b.w > vw) continue;
-      const gap = Math.min(b.x, vw - (b.x + b.w));
+      if (b.textX < 0 || b.textX + b.textW > vw) continue;
+      const gap = Math.min(b.textX, vw - (b.textX + b.textW));
       if (gap < 8) add('edge-crowding', 'suggestion', b.selector, `Text sits ${gap}px from the screen edge; give it at least 16px.`, b.text);
     }
   }

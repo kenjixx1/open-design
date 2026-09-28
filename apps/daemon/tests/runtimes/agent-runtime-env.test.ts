@@ -333,6 +333,17 @@ describe('agent runtime tool environment', () => {
     expect(prompt).toContain('`OD_TOOL_TOKEN` is not available');
     expect(prompt).not.toContain('Bearer');
   });
+
+  it('adds the Visual check section only when available and a token exists', () => {
+    const on = createAgentRuntimeToolPrompt('http://127.0.0.1:7456', { token: 't' }, { visualCheck: true });
+    expect(on).toContain('### Visual check');
+    expect(on).toContain('"$OD_NODE_BIN" "$OD_BIN" tools screenshot --json');
+    expect(on).not.toMatch(/\/(Users|home|private|tmp)\//);
+
+    expect(createAgentRuntimeToolPrompt('http://127.0.0.1:7456', { token: 't' })).not.toContain('### Visual check');
+    expect(createAgentRuntimeToolPrompt('http://127.0.0.1:7456', { token: 't' }, { visualCheck: false })).not.toContain('### Visual check');
+    expect(createAgentRuntimeToolPrompt('http://127.0.0.1:7456', null, { visualCheck: true })).not.toContain('### Visual check');
+  });
 });
 
 describe('applyAgentLaunchEnv', () => {

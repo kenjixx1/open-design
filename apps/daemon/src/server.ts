@@ -29,6 +29,7 @@ import {
   executionProfileFromStreamFormat,
   PLUGIN_SHARE_ACTION_PLUGIN_IDS,
   renderChatTurnHostProtocolInstructions,
+  renderVisualCheckDirective,
   resolveOdNextDeckFrameworkMode,
 } from '@open-design/contracts';
 import {
@@ -1860,6 +1861,7 @@ export function createAgentRuntimeEnv(
 export function createAgentRuntimeToolPrompt(
   daemonUrl: string,
   toolTokenGrant: { token?: string } | null = null,
+  options: { visualCheck?: boolean } = {},
 ): string {
   const tokenLine = toolTokenGrant?.token
     ? '- `OD_TOOL_TOKEN` is available in your environment for this run. Use it only through project wrapper commands; do not print, persist, or override it.'
@@ -1876,6 +1878,9 @@ export function createAgentRuntimeToolPrompt(
     tokenLine,
     '- Prefer project wrapper commands through `OD_NODE_BIN` + `OD_BIN` over raw HTTP. The wrappers read these environment values automatically.',
     '- For dynamic Skill reads pass --workspace "$OD_WORKSPACE_ID" --workspace-member "$OD_WORKSPACE_MEMBER_ID" (use the corresponding environment-variable syntax on other shells). This pair is pinned to this run, not the UI\'s current Workspace. Both values are empty for unbound local runs; never substitute a different Workspace or member when either is missing.',
+    ...(options.visualCheck === true && toolTokenGrant?.token
+      ? ['', '### Visual check', '', renderVisualCheckDirective()]
+      : []),
   ].join('\n');
 }
 

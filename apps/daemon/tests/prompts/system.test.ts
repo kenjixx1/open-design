@@ -146,6 +146,8 @@ describe('composeSystemPrompt', () => {
     expect(prompt).toContain('these justify ONE rendered look');
     // Route to the official wrapper, not a self-launched browser.
     expect(prompt).toContain('Do NOT launch your own browser to do this');
+    // Agent Eyes: the per-run Visual check section, when present, takes over.
+    expect(prompt).toContain('If the runtime tool environment has a "Visual check" section, follow it instead');
   });
 
   it('does not inject a default task-type form under locale overrides', () => {

@@ -300,6 +300,8 @@ export type PageVisualFacts = {
   brokenImages: Array<{ selector: string; src: string }>;
   document: { paintedElements: number; scrollHeight: number; scrollWidth: number; visibleTextChars: number };
   images: Array<{ drawnH: number; drawnW: number; naturalH: number; naturalW: number; selector: string }>;
+  // Visible IMG/VIDEO/CANVAS/PICTURE/SVG and background-image elements of at least 2500 px².
+  media: Array<{ h: number; w: number; x: number; y: number }>;
   targets: Array<{ h: number; selector: string; w: number }>;
   viewport: { height: number; width: number };
 };

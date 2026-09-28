@@ -42,6 +42,7 @@ function facts(overrides: Partial<PageVisualFacts> = {}): PageVisualFacts {
     brokenImages: [{ selector: 'img.logo', src: 'logo.png' }],
     document: { paintedElements: 3, scrollHeight: 2500, scrollWidth: 1440, visibleTextChars: 10 },
     images: [],
+    media: [],
     targets: [],
     viewport: { height: 1000, width: 1440 },
     ...overrides,

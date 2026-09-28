@@ -15,7 +15,7 @@ function box(o: Partial<DesktopVisualBox> = {}): DesktopVisualBox {
 }
 function facts(o: Partial<DesktopVisualFacts> = {}): DesktopVisualFacts {
   return {
-    boxes: [], brokenImages: [], consoleErrors: [], images: [], targets: [],
+    boxes: [], brokenImages: [], consoleErrors: [], images: [], media: [], targets: [],
     document: { paintedElements: 4, scrollHeight: 1000, scrollWidth: 1440, visibleTextChars: 200 },
     viewport: { height: 1000, width: 1440 }, ...o,
   };
@@ -155,6 +155,22 @@ describe('analyzeVisualFacts improvements', () => {
     expect(low.map((i) => i.selector)).toEqual(['.price']);
     expect(low[0]!.detail).toMatch(/2\.\d : 1/);
     expect(low[0]!.severity).toBe('suggestion');
+  });
+
+  it('skips contrast for text fully inside a media rect, but not otherwise', () => {
+    const inside = box({ selector: '.hero h2', color: [160, 160, 160, 1], x: 100, y: 100, w: 200, h: 20 });
+    const r1 = page(facts({
+      boxes: [inside],
+      media: [{ x: 0, y: 0, w: 1440, h: 400 }],
+    }));
+    expect(kinds(r1.improvements)).not.toContain('low-contrast');
+
+    const elsewhere = box({ selector: '.price', color: [160, 160, 160, 1], x: 100, y: 100, w: 200, h: 20 });
+    const r2 = page(facts({
+      boxes: [elsewhere],
+      media: [{ x: 900, y: 900, w: 100, h: 100 }],
+    }));
+    expect(kinds(r2.improvements)).toContain('low-contrast');
   });
 
   it('suggests bigger text, shorter lines, fewer fonts', () => {

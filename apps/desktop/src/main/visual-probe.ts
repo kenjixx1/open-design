@@ -92,6 +92,7 @@ export function collectVisualFactsInPage(opts: CollectVisualFactsOptions): PageV
 
   const ids = new Map<Element, number>();
   const boxes: DesktopVisualBox[] = [];
+  const media: PageVisualFacts["media"] = [];
   let visibleTextChars = 0;
   let paintedElements = 0;
   const skip = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "HEAD", "META", "LINK"]);
@@ -103,12 +104,20 @@ export function collectVisualFactsInPage(opts: CollectVisualFactsOptions): PageV
     if (!isVisible(el, rect)) continue;
     const cs = getComputedStyle(el);
     const tag = el.tagName;
+    const isMediaTag = ["IMG", "VIDEO", "CANVAS", "PICTURE", "SVG"].includes(tag.toUpperCase());
     if (
       tag === "IMG" || tag === "SVG" || tag === "CANVAS" || tag === "VIDEO" || tag === "PICTURE"
       || (cs.backgroundImage && cs.backgroundImage !== "none")
       || (toColor(cs.backgroundColor)?.[3] ?? 0) > 0
     ) {
       if (rect.width * rect.height > 100) paintedElements += 1;
+    }
+    if (
+      (isMediaTag || (cs.backgroundImage && cs.backgroundImage !== "none"))
+      && rect.width * rect.height >= 2500
+      && media.length < 100
+    ) {
+      media.push({ h: Math.round(rect.height), w: Math.round(rect.width), x: Math.round(rect.left), y: Math.round(rect.top) });
     }
     const own = ownText(el);
     visibleTextChars += own.length;
@@ -192,6 +201,7 @@ export function collectVisualFactsInPage(opts: CollectVisualFactsOptions): PageV
       visibleTextChars,
     },
     images,
+    media,
     targets,
     viewport: { height: vh, width: vw },
   };

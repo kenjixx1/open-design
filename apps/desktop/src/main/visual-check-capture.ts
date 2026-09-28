@@ -83,6 +83,7 @@ export function mergeDeckFacts(
   const brokenImages: DesktopVisualFacts["brokenImages"] = [];
   const brokenSeen = new Set<string>();
   const images: DesktopVisualFacts["images"] = [];
+  const media: DesktopVisualFacts["media"] = [];
   const targets: DesktopVisualFacts["targets"] = [];
   let offset = 0;
   let visibleTextChars = 0;
@@ -102,6 +103,7 @@ export function mergeDeckFacts(
       }
     }
     for (const img of facts.images) if (images.length < 40) images.push(img);
+    for (const m of facts.media) if (media.length < 100) media.push(m);
     for (const t of facts.targets) if (targets.length < 60) targets.push(t);
     visibleTextChars += facts.document.visibleTextChars;
     paintedElements += facts.document.paintedElements;
@@ -114,6 +116,7 @@ export function mergeDeckFacts(
     consoleErrors: [...consoleErrors],
     document: { paintedElements, scrollHeight, scrollWidth, visibleTextChars },
     images,
+    media,
     slides: perSlide.map(({ index }) => ({ h: stage.h, index, w: stage.w, x: 0, y: 0 })),
     targets,
     viewport: { height: stage.h, width: stage.w },

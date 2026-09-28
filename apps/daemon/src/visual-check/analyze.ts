@@ -124,8 +124,20 @@ export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisua
   }
 
   // --- improvements ---
+  const coveredByMedia = (b: DesktopVisualBox): boolean => {
+    const area = b.w * b.h;
+    if (area <= 0) return false;
+    for (const m of facts.media) {
+      const ix = Math.min(b.x + b.w, m.x + m.w) - Math.max(b.x, m.x);
+      const iy = Math.min(b.y + b.h, m.y + m.h) - Math.max(b.y, m.y);
+      if (ix <= 0 || iy <= 0) continue;
+      if ((ix * iy) / area >= 0.5) return true;
+    }
+    return false;
+  };
+
   for (const b of textBoxes) {
-    if (!b.color || !b.background || b.bgImageBehind) continue;
+    if (!b.color || !b.background || b.bgImageBehind || coveredByMedia(b)) continue;
     const ratio = contrastRatio(b.color, b.background);
     const large = b.fontSize >= 24 || (b.fontSize >= 18.66 && b.fontWeight >= 700);
     const target = large ? 3 : 4.5;

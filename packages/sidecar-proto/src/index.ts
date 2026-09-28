@@ -310,6 +310,11 @@ export type DesktopVisualFacts = PageVisualFacts & {
   slides?: Array<{ h: number; index: number; w: number; x: number; y: number }>;
 };
 
+// Renders an HTML deck (every `<section class="slide">`) to one pixel-perfect
+// PNG per slide using the desktop's Electron Chromium, so screenshot-based
+// PPTX/PDF export reuses the already-bundled browser instead of shipping a
+// second headless engine. `slides` are `data:image/png;base64,...` URLs in
+// slide order; `width`/`height` are the captured pixel dimensions.
 export type DesktopRenderSlidesInput = {
   baseHref?: string;
   html: string;

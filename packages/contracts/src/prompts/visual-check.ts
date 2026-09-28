@@ -9,7 +9,7 @@ export function renderVisualCheckDirective(): string {
     'Use this after you write or change the HTML deliverable in this turn. Skip it in turns that only plan, ask questions, or answer in prose.',
     '',
     '1. Run `"$OD_NODE_BIN" "$OD_BIN" tools screenshot --json`. With no file it checks this run\'s deliverable; pass a project-relative path to check another page.',
-    '2. The answer lists `images` (PNG paths), `issues`, and `improvements`. If you can open image files, open every image. Always read both lists.',
+    '2. The answer lists `images` (PNG paths), `issues`, and `improvements`. If you can open image files, open every image. Always read `issues` and `improvements`.',
     '3. Errors first: fix every issue with severity `error`. Fix a `warning` only when the image or the markup confirms it.',
     '4. Then improvements: apply the listed improvements that fit the brief and the active design system. If you opened the images, you may also make up to 3 improvements of your own, chosen only from: one clear focal point per screen; even spacing between sections; aligned edges; heading sizes that step down clearly; no section that looks empty or unfinished. Do not restyle beyond the brief, and never undo something the user explicitly asked for.',
     '5. Run the command again after your fixes. You get at most two re-checks per page; the command refuses further looks. Then finish.',

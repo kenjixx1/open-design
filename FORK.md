@@ -24,6 +24,7 @@ canvases next to the code.
 | Produced-files baseline | Not computed until the file list has loaded | First message of a folder project used an empty baseline and listed every repo file as "created". `ProjectView.tsx` |
 | Linked directories → Codex | `OD_LINKED_DIRS` env (JSON keyed by `linked-dir:N`) | Stock passes nothing to Codex under OD Next (no `--add-dir`, alias only in prompt). Candidate upstream PR. |
 | Agent-declared block | A prose answer with no deliverable stays a green, finished turn | Otherwise every question shows "Run failed". (In progress; see git log.) |
+| Agent Eyes | Agents run `od tools screenshot` after building; the desktop renderer returns screen tiles plus measured errors and improvement ideas; the rule rides in the per-run tool notes only when the desktop is open | Agents were blind to layout bugs. Spec `.plans/2026-09-28-agent-eyes-design.md`. `routes/visual-check-tool.ts`, `visual-check-capture.ts` |
 
 ## Rules for working in this fork
 

@@ -144,6 +144,14 @@ export async function startDaemonSidecar(
     desktopSlideRenderer: async (input: DesktopRenderSlidesInput): Promise<DesktopRenderSlidesResult> => {
       return await invokeDesktop<DesktopRenderSlidesResult>(SIDECAR_MESSAGES.RENDER_SLIDES, input, 600_000);
     },
+    desktopVisualCheckProbe: async (): Promise<boolean> => {
+      try {
+        const status = await statusDesktop(3_000);
+        return status.state === "running" && status.capabilities?.visualCheck === true;
+      } catch {
+        return false;
+      }
+    },
     desktopArtifactExporter: async (input: DesktopExportArtifactInput): Promise<DesktopExportArtifactResult> => {
       return await invokeDesktop<DesktopExportArtifactResult>(SIDECAR_MESSAGES.EXPORT_ARTIFACT, input, 600_000);
     },

@@ -95,6 +95,7 @@ to the **host**, not to either strategy — if a strategy is retired, these stay
 | `@media print` block | Share → PDF multi-page stitching | ✅ | ✅ |
 | `<question-form>` | `AssistantMessage.tsx` → `QuestionFormView`; `runAskedUserQuestion` analytics | ✅ `discovery.ts` | ✅ `od-next-strategy.ts:434` |
 | `.od-frames/` device shells | prototype device frames | ❌ | ✅ OD Next only |
+| Visual check (`od tools screenshot`) | `routes/visual-check-tool.ts`; directive from `packages/contracts/src/prompts/visual-check.ts` appended by `createAgentRuntimeToolPrompt` only when a live desktop advertises `capabilities.visualCheck` | ✅ runtime tool block | ✅ runtime tool block |
 
 Two things to read off this table.
 

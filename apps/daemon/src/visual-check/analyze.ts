@@ -48,16 +48,47 @@ function isAncestor(boxes: Map<number, DesktopVisualBox>, maybeAncestor: number,
   return false;
 }
 
+/**
+ * Merges findings that share kind + selector + detail into one (appending
+ * ` (×N)` to the detail when more than one collapsed), then caps each kind
+ * to MAX_PER_KIND. The cap applies after merging, so N identical repeats of
+ * one real finding (e.g. the same price line on every menu card) cost one
+ * slot instead of N.
+ */
+function mergeAndCapFindings(list: VisualCheckIssue[]): VisualCheckIssue[] {
+  const order: string[] = [];
+  const groups = new Map<string, { item: VisualCheckIssue; count: number }>();
+  for (const item of list) {
+    const key = `${item.kind}|${item.selector}|${item.detail}`;
+    const g = groups.get(key);
+    if (g) {
+      g.count += 1;
+    } else {
+      groups.set(key, { item, count: 1 });
+      order.push(key);
+    }
+  }
+  const merged = order.map((key) => {
+    const { item, count } = groups.get(key)!;
+    return count > 1 ? { ...item, detail: `${item.detail} (×${count})` } : item;
+  });
+  const counts = new Map<VisualCheckIssueKind, number>();
+  const capped: VisualCheckIssue[] = [];
+  for (const item of merged) {
+    const n = counts.get(item.kind) ?? 0;
+    if (n >= MAX_PER_KIND) continue;
+    counts.set(item.kind, n + 1);
+    capped.push(item);
+  }
+  return capped;
+}
+
 export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisualFactsResult {
   const { facts, mode } = input;
   const firstBatch = input.firstBatch ?? true;
   const vw = facts.viewport.width;
   const all: VisualCheckIssue[] = [];
-  const counts = new Map<VisualCheckIssueKind, number>();
   const add = (kind: VisualCheckIssueKind, severity: VisualCheckSeverity, selector: string, detail: string, text?: string) => {
-    const n = counts.get(kind) ?? 0;
-    if (n >= MAX_PER_KIND) return;
-    counts.set(kind, n + 1);
     all.push({ kind, severity, selector, detail, ...(text ? { text: text.slice(0, 60) } : {}) });
   };
   // Real text only: a clipping container with no own text (recorded so
@@ -124,9 +155,8 @@ export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisua
     if (overhang > 4) add('clipped-text', 'warning', b.selector, `Text is cut off: ${Math.round(overhang)}px is hidden.`, b.text);
   }
 
-  outer: for (let i = 0; i < textBoxes.length; i++) {
+  for (let i = 0; i < textBoxes.length; i++) {
     for (let j = i + 1; j < textBoxes.length; j++) {
-      if ((counts.get('overlapping-text') ?? 0) >= MAX_PER_KIND) break outer;
       const a = textBoxes[i]!;
       const b = textBoxes[j]!;
       if (a.slide !== b.slide) continue;
@@ -211,8 +241,9 @@ export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisua
     }
   }
 
+  const merged = mergeAndCapFindings(all);
   return {
-    issues: all.filter((i) => i.severity !== 'suggestion'),
-    improvements: all.filter((i) => i.severity === 'suggestion'),
+    issues: merged.filter((i) => i.severity !== 'suggestion'),
+    improvements: merged.filter((i) => i.severity === 'suggestion'),
   };
 }

@@ -268,6 +268,19 @@ describe('analyzeVisualFacts improvements', () => {
     expect(kinds(r.improvements)).not.toContain('long-lines');
   });
 
+  it('merges identical repeated findings into one with a ×N count', () => {
+    const r = page(facts({
+      boxes: [
+        box({ selector: '.menu-card .price', color: [160, 160, 160, 1] }),
+        box({ selector: '.menu-card .price', color: [160, 160, 160, 1] }),
+        box({ selector: '.menu-card .price', color: [160, 160, 160, 1] }),
+      ],
+    }));
+    const low = r.improvements.filter((i) => i.kind === 'low-contrast');
+    expect(low).toHaveLength(1);
+    expect(low[0]!.detail.endsWith('(×3)')).toBe(true);
+  });
+
   it('checks tap targets only at phone width', () => {
     const f = facts({ targets: [{ selector: 'a.icon', w: 20, h: 20 }], viewport: { height: 1000, width: 390 } });
     expect(kinds(page(f, 390).improvements)).toContain('small-tap-target');

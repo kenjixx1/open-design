@@ -210,7 +210,7 @@ export function collectVisualFactsInPage(opts: CollectVisualFactsOptions): PageV
   const brokenImages: PageVisualFacts["brokenImages"] = [];
   const images: PageVisualFacts["images"] = [];
   for (const img of Array.from(document.images)) {
-    const src = img.currentSrc || img.getAttribute("src") || "";
+    const src = img.getAttribute("src") || img.currentSrc || "";
     if (!src) continue;
     if (img.complete && img.naturalWidth === 0) {
       if (brokenImages.length < 20) brokenImages.push({ selector: selectorOf(img), src: src.slice(0, 200) });

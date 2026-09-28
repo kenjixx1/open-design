@@ -283,6 +283,9 @@ export type DesktopVisualBox = {
   h: number;
   id: number;
   insideScroller: boolean;
+  // True when the element has its own non-empty text nodes; false for a
+  // clipping container recorded only for clipped-text.
+  ownText: boolean;
   parent: number | null;
   scrollH: number;
   scrollW: number;

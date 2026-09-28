@@ -60,7 +60,9 @@ export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisua
     counts.set(kind, n + 1);
     all.push({ kind, severity, selector, detail, ...(text ? { text: text.slice(0, 60) } : {}) });
   };
-  const textBoxes = facts.boxes.filter((b) => b.text.length > 0);
+  // Real text only: a clipping container with no own text (recorded so
+  // clipped-text can see it) must not feed content-based checks.
+  const textBoxes = facts.boxes.filter((b) => b.ownText && b.text.length > 0);
   const byId = new Map(facts.boxes.map((b) => [b.id, b]));
 
   // --- errors ---
@@ -103,10 +105,23 @@ export function analyzeVisualFacts(input: AnalyzeVisualFactsInput): AnalyzeVisua
 
   for (const b of facts.boxes) {
     if (b.ellipsis || b.animatedChildren || !b.text) continue;
-    const hiddenX = b.clipsX ? b.scrollW - b.clientW : 0;
-    const hiddenY = b.clipsY ? b.scrollH - b.clientH : 0;
-    const hidden = Math.max(hiddenX, hiddenY);
-    if (hidden > 4) add('clipped-text', 'warning', b.selector, `Text is cut off: ${hidden}px is hidden.`, b.text);
+    if (!b.clipsX && !b.clipsY) continue;
+    if (b.ownText) {
+      const hiddenX = b.clipsX ? b.scrollW - b.clientW : 0;
+      const hiddenY = b.clipsY ? b.scrollH - b.clientH : 0;
+      const hidden = Math.max(hiddenX, hiddenY);
+      if (hidden > 4) add('clipped-text', 'warning', b.selector, `Text is cut off: ${hidden}px is hidden.`, b.text);
+      continue;
+    }
+    // A container recorded only because it clips: flag it only when a real
+    // descendant text box actually overhangs the clipped axis/axes.
+    let overhang = 0;
+    for (const d of facts.boxes) {
+      if (!d.ownText || !isAncestor(byId, b.id, d)) continue;
+      if (b.clipsY) overhang = Math.max(overhang, b.y - d.y, d.y + d.h - (b.y + b.h));
+      if (b.clipsX) overhang = Math.max(overhang, b.x - d.x, d.x + d.w - (b.x + b.w));
+    }
+    if (overhang > 4) add('clipped-text', 'warning', b.selector, `Text is cut off: ${Math.round(overhang)}px is hidden.`, b.text);
   }
 
   outer: for (let i = 0; i < textBoxes.length; i++) {

@@ -182,6 +182,7 @@ export function collectVisualFactsInPage(opts: CollectVisualFactsOptions): PageV
       h: Math.round(rect.height),
       id,
       insideScroller: insideScroller(el),
+      ownText: own.length > 0,
       parent,
       scrollH: el.scrollHeight,
       scrollW: el.scrollWidth,

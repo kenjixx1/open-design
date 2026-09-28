@@ -8,7 +8,7 @@ function box(o: Partial<DesktopVisualBox> = {}): DesktopVisualBox {
   const merged = {
     animatedChildren: false, background: [255, 255, 255, 1] as [number, number, number, number] | null, bgImageBehind: false,
     clientH: 20, clientW: 200, clipsX: false, clipsY: false, color: [0, 0, 0, 1] as [number, number, number, number] | null, ellipsis: false,
-    fontFamily: 'inter', fontSize: 16, fontWeight: 400, h: 20, id: nextId++, insideScroller: false,
+    fontFamily: 'inter', fontSize: 16, fontWeight: 400, h: 20, id: nextId++, insideScroller: false, ownText: true,
     parent: null as number | null, scrollH: 20, scrollW: 200, selector: 'p', slide: null as number | null, text: 'Hello there',
     w: 200, x: 100, y: 100, ...o,
   };
@@ -94,8 +94,8 @@ describe('analyzeVisualFacts errors', () => {
   it('flags cased TODO/TBD markers and lorem ipsum as placeholder text', () => {
     const r = page(facts({
       boxes: [
-        box({ text: 'TODO: hero copy' }),
-        box({ text: 'Lorem ipsum dolor' }),
+        box({ selector: '.hero p', text: 'TODO: hero copy' }),
+        box({ selector: '.footer p', text: 'Lorem ipsum dolor' }),
       ],
     }));
     expect(r.issues.filter((i) => i.kind === 'placeholder-text')).toHaveLength(2);
@@ -111,6 +111,29 @@ describe('analyzeVisualFacts errors', () => {
       ],
     }));
     expect(r.issues.filter((i) => i.kind === 'clipped-text').map((i) => i.selector)).toEqual(['.card']);
+  });
+
+  it('treats a text-less clip container as decorative unless a real descendant text box overhangs it', () => {
+    const container = box({
+      selector: '.hero', ownText: false, clipsY: true, scrollH: 300, clientH: 100,
+      text: 'x'.repeat(150), color: [200, 200, 200, 1], background: [255, 255, 255, 1],
+      w: 1200, x: 0, textX: 0, textW: 1200, fontSize: 16,
+    });
+    const r = page(facts({ boxes: [container] }));
+    expect(kinds(r.issues)).not.toContain('clipped-text');
+    expect(kinds(r.improvements)).not.toContain('long-lines');
+    expect(kinds(r.improvements)).not.toContain('edge-crowding');
+    expect(kinds(r.improvements)).not.toContain('low-contrast');
+  });
+
+  it('flags clipped-text for a container whose real descendant text overhangs the clip rect', () => {
+    const container = box({ selector: '.hero', ownText: false, clipsY: true, scrollH: 300, clientH: 100, text: 'child text', y: 0, h: 100 });
+    const child = box({ selector: '.hero h1', ownText: true, parent: container.id, x: 100, y: 80, h: 40, w: 100, text: 'Welcome' });
+    const r = page(facts({ boxes: [container, child] }));
+    const clipped = r.issues.filter((i) => i.kind === 'clipped-text');
+    expect(clipped).toHaveLength(1);
+    expect(clipped[0]!.selector).toBe('.hero');
+    expect(clipped[0]!.detail).toContain('20px');
   });
 
   it('flags overlapping text but not a parent and its child', () => {

@@ -129,7 +129,7 @@ export function collectVisualFactsInPage(opts: CollectVisualFactsOptions): PageV
     const tag = el.tagName;
     const isMediaTag = ["IMG", "VIDEO", "CANVAS", "PICTURE", "SVG"].includes(tag.toUpperCase());
     if (
-      tag === "IMG" || tag === "SVG" || tag === "CANVAS" || tag === "VIDEO" || tag === "PICTURE"
+      isMediaTag
       || (cs.backgroundImage && cs.backgroundImage !== "none")
       || (toColor(cs.backgroundColor)?.[3] ?? 0) > 0
     ) {

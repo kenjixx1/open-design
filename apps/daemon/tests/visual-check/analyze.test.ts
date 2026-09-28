@@ -143,7 +143,10 @@ describe('analyzeVisualFacts errors', () => {
         ],
       }),
     });
-    expect(kinds(r.issues)).not.toEqual(expect.arrayContaining(['blank-page', 'horizontal-overflow', 'broken-image', 'console-error']));
+    expect(kinds(r.issues)).not.toContain('blank-page');
+    expect(kinds(r.issues)).not.toContain('horizontal-overflow');
+    expect(kinds(r.issues)).not.toContain('broken-image');
+    expect(kinds(r.issues)).not.toContain('console-error');
     expect(kinds(r.improvements)).not.toContain('too-many-fonts');
     expect(kinds(r.issues)).toContain('clipped-text');
   });

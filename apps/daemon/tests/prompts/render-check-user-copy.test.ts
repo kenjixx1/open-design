@@ -72,5 +72,8 @@ describe('render-check failure stays out of the visible reply', () => {
     // Rewriting the leak must not drop it.
     expect(CLASSIC).toContain('One render check is the budget');
     expect(SLIM).toContain('Render at most once per task');
+
+    expect(CLASSIC).toContain('If the runtime tool environment has a "Visual check" section, follow it instead');
+    expect(SLIM).toContain('If the runtime tool environment has a "Visual check" section, follow it instead of this step');
   });
 });

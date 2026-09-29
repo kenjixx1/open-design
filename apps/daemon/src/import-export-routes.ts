@@ -50,6 +50,7 @@ import {
 } from './collab/created-project-workspace.js';
 import type { WorkspaceDirectoryFetchResult } from './collab/vela-workspace-context.js';
 import type { BoundWorkspaceResourceMutationGate } from './collab/workspace-resource-mutation.js';
+import { projectPreviewBaseHref } from './preview-base-href.js';
 
 export interface RegisterImportRoutesDeps extends RouteDeps<'db' | 'http' | 'uploads' | 'node' | 'ids' | 'paths' | 'imports' | 'auth' | 'projectStore' | 'conversations' | 'projectFiles' | 'validation'> {
   fetchProjectCreationWorkspaceDirectory?: () => Promise<WorkspaceDirectoryFetchResult>;
@@ -875,11 +876,7 @@ export function registerProjectExportRoutes(app: Express, ctx: RegisterProjectEx
     fileName: string,
     scope: string,
   ): string {
-    const previewDir = nodePath.posix.dirname(fileName.replace(/^\/+/, ''));
-    const previewRoot = `${daemonUrlRef.current.replace(/\/+$/, '')}/api/projects/${encodeURIComponent(projectId)}/preview/${encodeURIComponent(scope)}/`;
-    return !previewDir || previewDir === '.'
-      ? previewRoot
-      : `${previewRoot}${previewDir.split('/').filter(Boolean).map(encodeURIComponent).join('/')}/`;
+    return projectPreviewBaseHref(daemonUrlRef.current, projectId, fileName, scope);
   }
 
   function normalizeExportVersionId(raw: unknown): string | undefined {

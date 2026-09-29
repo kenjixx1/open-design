@@ -4,7 +4,7 @@ import path from 'node:path';
 import { PDFDocument } from 'pdf-lib';
 import * as PptxGenJSModule from 'pptxgenjs';
 import { injectDeckStageFallback } from '@open-design/contracts/runtime/deck-stage-fallback';
-import type { DesktopRenderSlidesInput } from '@open-design/sidecar-proto';
+import type { DesktopRenderRange, DesktopRenderSlidesInput } from '@open-design/sidecar-proto';
 
 // pptxgenjs ships a default-export class, but its NodeNext typings resolve the
 // default to the module namespace (no construct signature). At runtime the ESM
@@ -61,6 +61,9 @@ export interface BuildDeckRenderInputOptions {
   // (multi-page PDF). Ignored when the artifact renders as a deck.
   paginate?: boolean;
   title?: string;
+  // Visual check: tiles/slides + layout facts (see sidecar-proto `inspect`).
+  inspect?: boolean;
+  range?: DesktopRenderRange;
 }
 
 export interface DeckRenderRequest {
@@ -98,6 +101,8 @@ export async function buildDeckRenderInput(
       ...(options.pageImageFormat == null ? {} : { pageImageFormat: options.pageImageFormat }),
       ...(options.stitch == null ? {} : { stitch: options.stitch }),
       ...(options.paginate == null ? {} : { paginate: options.paginate }),
+      ...(options.inspect == null ? {} : { inspect: options.inspect }),
+      ...(options.range == null ? {} : { range: options.range }),
       ...(options.width == null ? {} : { width: options.width }),
       ...(options.height == null ? {} : { height: options.height }),
     },

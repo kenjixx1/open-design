@@ -29,6 +29,7 @@ import {
   executionProfileFromStreamFormat,
   PLUGIN_SHARE_ACTION_PLUGIN_IDS,
   renderChatTurnHostProtocolInstructions,
+  renderVisualCheckDirective,
   resolveOdNextDeckFrameworkMode,
 } from '@open-design/contracts';
 import {
@@ -894,6 +895,9 @@ import { registerMcpRoutes } from './mcp-routes.js';
 import { registerXaiRoutes } from './routes/xai.js';
 import { registerLiveArtifactRoutes } from './routes/live-artifact.js';
 import { registerDeliverableSyntaxToolRoutes } from './routes/deliverable-syntax-tool.js';
+import { registerVisualCheckToolRoutes, VISUAL_CHECK_PREVIEW_SCOPE_TTL_MS } from './routes/visual-check-tool.js';
+import { createVisualCheckAvailability } from './visual-check/availability.js';
+import { visualCheckRoot } from './visual-check/storage.js';
 import { registerDesignSystemToolRoutes } from './routes/design-system-tool.js';
 import { registerDeployRoutes, registerDeploymentCheckRoutes } from './routes/deploy.js';
 import { registerMediaRoutes } from './routes/media.js';
@@ -1860,6 +1864,7 @@ export function createAgentRuntimeEnv(
 export function createAgentRuntimeToolPrompt(
   daemonUrl: string,
   toolTokenGrant: { token?: string } | null = null,
+  options: { visualCheck?: boolean } = {},
 ): string {
   const tokenLine = toolTokenGrant?.token
     ? '- `OD_TOOL_TOKEN` is available in your environment for this run. Use it only through project wrapper commands; do not print, persist, or override it.'
@@ -1876,6 +1881,9 @@ export function createAgentRuntimeToolPrompt(
     tokenLine,
     '- Prefer project wrapper commands through `OD_NODE_BIN` + `OD_BIN` over raw HTTP. The wrappers read these environment values automatically.',
     '- For dynamic Skill reads pass --workspace "$OD_WORKSPACE_ID" --workspace-member "$OD_WORKSPACE_MEMBER_ID" (use the corresponding environment-variable syntax on other shells). This pair is pinned to this run, not the UI\'s current Workspace. Both values are empty for unbound local runs; never substitute a different Workspace or member when either is missing.',
+    ...(options.visualCheck === true && toolTokenGrant?.token
+      ? ['', '### Visual check', '', renderVisualCheckDirective()]
+      : []),
   ].join('\n');
 }
 
@@ -3065,6 +3073,7 @@ export interface StartServerOptions {
   desktopFrameRenderer?: DesktopFrameRenderer | null;
   desktopPdfExporter?: DesktopPdfExporter | null;
   desktopSlideRenderer?: DesktopSlideRenderer | null;
+  desktopVisualCheckProbe?: (() => Promise<boolean>) | null;
   host?: string;
   port?: number;
   returnServer?: boolean;
@@ -3105,6 +3114,7 @@ export async function startServer({
   desktopPdfExporter = null,
   desktopFrameRenderer = null,
   desktopSlideRenderer = null,
+  desktopVisualCheckProbe = null,
   desktopArtifactExporter = null,
   runtime = null,
   staticDir = STATIC_DIR,
@@ -3172,6 +3182,7 @@ export async function startServer({
   app.use(CHAT_SCROLL_FORENSICS_PATH, chatScrollForensicsBodyParser);
   app.use(express.json({ limit: '4mb' }));
   const projectPreviewScopes = createProjectPreviewScopeRegistry();
+  const visualCheckAvailable = createVisualCheckAvailability(desktopVisualCheckProbe);
 
   // Plan §3.K1 — API-token middleware.
   //
@@ -9000,6 +9011,19 @@ export async function startServer({
       ).renderDependencyTouchedPaths;
     },
   });
+  registerVisualCheckToolRoutes(app, {
+    projectsRoot: PROJECTS_DIR,
+    visualChecksRoot: visualCheckRoot(RUNTIME_DATA_DIR),
+    daemonUrl: () => daemonUrlRef.current,
+    authorizeToolRequest,
+    authorizeProjectToolRequest,
+    getProject: (id: string) => getProject(db, id),
+    isAvailable: visualCheckAvailable,
+    renderSlides: desktopSlideRenderer,
+    mintPreviewScope: (projectId, workspace) =>
+      projectPreviewScopes.mint(projectId, workspace, { ttlMs: VISUAL_CHECK_PREVIEW_SCOPE_TTL_MS }),
+    revokePreviewScope: (scope) => projectPreviewScopes.revoke(scope),
+  });
   registerDesignSystemToolRoutes(app, {
     auth: authDeps,
     http: httpDeps,
@@ -10619,6 +10643,7 @@ export async function startServer({
     getAgentDef,
     createAgentRuntimeToolPrompt,
     composeDaemonSystemPrompt,
+    resolveVisualCheckAvailable: visualCheckAvailable,
   });
   // Plan §3.I1 / §3.D / spec §10.1: fire the pipeline schedule on a
   // run's SSE stream. Synchronous first emit (the first
@@ -11160,7 +11185,8 @@ export async function startServer({
         activeChatRunHandles.delete(sinkRunId);
       };
     }
-    const runtimeToolPrompt = createAgentRuntimeToolPrompt(daemonUrl, toolTokenGrant);
+    const visualCheck = toolTokenGrant ? await visualCheckAvailable() : false;
+    const runtimeToolPrompt = createAgentRuntimeToolPrompt(daemonUrl, toolTokenGrant, { visualCheck });
     const commentHint = renderCommentAttachmentHint(safeCommentAttachments);
 
     // Resolve external MCP config + stored OAuth tokens up-front so the

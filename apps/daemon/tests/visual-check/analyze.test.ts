@@ -1,0 +1,299 @@
+import type { DesktopVisualBox, DesktopVisualFacts } from '@open-design/sidecar-proto';
+import { describe, expect, it } from 'vitest';
+
+import { analyzeVisualFacts, contrastRatio } from '../../src/visual-check/analyze.js';
+
+let nextId = 0;
+function box(o: Partial<DesktopVisualBox> = {}): DesktopVisualBox {
+  const merged = {
+    animatedChildren: false, background: [255, 255, 255, 1] as [number, number, number, number] | null, bgImageBehind: false,
+    clientH: 20, clientW: 200, clipsX: false, clipsY: false, color: [0, 0, 0, 1] as [number, number, number, number] | null, ellipsis: false,
+    fontFamily: 'inter', fontSize: 16, fontWeight: 400, h: 20, id: nextId++, insideScroller: false, ownText: true,
+    parent: null as number | null, scrollH: 20, scrollW: 200, selector: 'p', slide: null as number | null, text: 'Hello there',
+    w: 200, x: 100, y: 100, ...o,
+  };
+  return { ...merged, textX: o.textX ?? merged.x, textW: o.textW ?? merged.w };
+}
+function facts(o: Partial<DesktopVisualFacts> = {}): DesktopVisualFacts {
+  return {
+    boxes: [], brokenImages: [], consoleErrors: [], images: [], media: [], targets: [],
+    document: { paintedElements: 4, scrollHeight: 1000, scrollWidth: 1440, visibleTextChars: 200 },
+    viewport: { height: 1000, width: 1440 }, ...o,
+  };
+}
+const page = (f: DesktopVisualFacts, width = 1440) => analyzeVisualFacts({ facts: f, mode: 'page', width });
+const kinds = (list: { kind: string }[]) => list.map((i) => i.kind);
+
+describe('contrastRatio', () => {
+  it('matches known WCAG values', () => {
+    expect(contrastRatio([0, 0, 0, 1], [255, 255, 255, 1])).toBeCloseTo(21, 1);
+    expect(contrastRatio([119, 119, 119, 1], [255, 255, 255, 1])).toBeCloseTo(4.48, 2);
+  });
+  it('blends a translucent foreground over the background', () => {
+    expect(contrastRatio([0, 0, 0, 0], [255, 255, 255, 1])).toBeCloseTo(1, 5);
+  });
+});
+
+describe('analyzeVisualFacts errors', () => {
+  it('flags a blank page', () => {
+    const r = page(facts({ document: { paintedElements: 0, scrollHeight: 1000, scrollWidth: 1440, visibleTextChars: 0 } }));
+    expect(kinds(r.issues)).toContain('blank-page');
+  });
+
+  it('flags horizontal overflow and names the widest offender, skipping scrollers', () => {
+    const r = page(facts({
+      document: { paintedElements: 4, scrollHeight: 1000, scrollWidth: 1580, visibleTextChars: 200 },
+      boxes: [
+        box({ selector: '.menu .cards', x: 100, w: 1480 }),
+        box({ selector: '.carousel p', x: 1300, w: 400, insideScroller: true }),
+      ],
+    }));
+    const overflow = r.issues.filter((i) => i.kind === 'horizontal-overflow');
+    expect(overflow).toHaveLength(1);
+    expect(overflow[0]!.selector).toBe('.menu .cards');
+    expect(overflow[0]!.detail).toContain('1580px');
+    expect(overflow[0]!.severity).toBe('error');
+  });
+
+  it('flags slide overflow beyond 4px only', () => {
+    const r = analyzeVisualFacts({
+      mode: 'deck', width: 1920,
+      facts: facts({
+        viewport: { height: 1080, width: 1920 },
+        slides: [{ index: 4, x: 0, y: 0, w: 1920, h: 1080 }],
+        boxes: [
+          box({ slide: 4, y: 1000, h: 120, selector: '.slide ul' }),
+          box({ slide: 4, y: 1000, h: 83, selector: '.slide small' }),
+        ],
+      }),
+    });
+    const spills = r.issues.filter((i) => i.kind === 'slide-overflow');
+    expect(spills.map((i) => i.selector)).toEqual(['.slide ul']);
+    expect(spills[0]!.detail).toContain('slide 5');
+  });
+
+  it('flags broken images and placeholder text as errors', () => {
+    const r = page(facts({
+      brokenImages: [{ selector: 'img.logo', src: 'logo.png' }],
+      boxes: [box({ text: 'Lorem ipsum dolor sit amet' })],
+    }));
+    expect(r.issues.filter((i) => i.severity === 'error').map((i) => i.kind).sort()).toEqual(['broken-image', 'placeholder-text']);
+  });
+
+  it('does not flag lowercase "todo" occurring in real content', () => {
+    const r = page(facts({
+      boxes: [
+        box({ text: 'Add a todo' }),
+        box({ text: 'My Todo list' }),
+        box({ text: 'Date: tbd' }),
+      ],
+    }));
+    expect(r.issues.filter((i) => i.kind === 'placeholder-text')).toHaveLength(0);
+  });
+
+  it('flags cased TODO/TBD markers and lorem ipsum as placeholder text', () => {
+    const r = page(facts({
+      boxes: [
+        box({ selector: '.hero p', text: 'TODO: hero copy' }),
+        box({ selector: '.footer p', text: 'Lorem ipsum dolor' }),
+      ],
+    }));
+    expect(r.issues.filter((i) => i.kind === 'placeholder-text')).toHaveLength(2);
+  });
+
+  it('flags clipped text unless it is an ellipsis or an animated carousel', () => {
+    const r = page(facts({
+      boxes: [
+        box({ selector: '.card', clipsY: true, scrollH: 140, clientH: 100 }),
+        box({ selector: '.title', clipsX: true, scrollW: 300, clientW: 200, ellipsis: true }),
+        box({ selector: '.marquee', clipsX: true, scrollW: 900, clientW: 200, animatedChildren: true }),
+        box({ selector: '.italic', clipsX: true, scrollW: 203, clientW: 200 }),
+      ],
+    }));
+    expect(r.issues.filter((i) => i.kind === 'clipped-text').map((i) => i.selector)).toEqual(['.card']);
+  });
+
+  it('treats a text-less clip container as decorative unless a real descendant text box overhangs it', () => {
+    const container = box({
+      selector: '.hero', ownText: false, clipsY: true, scrollH: 300, clientH: 100,
+      text: 'x'.repeat(150), color: [200, 200, 200, 1], background: [255, 255, 255, 1],
+      w: 1200, x: 0, textX: 0, textW: 1200, fontSize: 16,
+    });
+    const r = page(facts({ boxes: [container] }));
+    expect(kinds(r.issues)).not.toContain('clipped-text');
+    expect(kinds(r.improvements)).not.toContain('long-lines');
+    expect(kinds(r.improvements)).not.toContain('edge-crowding');
+    expect(kinds(r.improvements)).not.toContain('low-contrast');
+  });
+
+  it('flags clipped-text for a container whose real descendant text overhangs the clip rect', () => {
+    const container = box({ selector: '.hero', ownText: false, clipsY: true, scrollH: 300, clientH: 100, text: 'child text', y: 0, h: 100 });
+    const child = box({ selector: '.hero h1', ownText: true, parent: container.id, x: 100, y: 80, h: 40, w: 100, text: 'Welcome' });
+    const r = page(facts({ boxes: [container, child] }));
+    const clipped = r.issues.filter((i) => i.kind === 'clipped-text');
+    expect(clipped).toHaveLength(1);
+    expect(clipped[0]!.selector).toBe('.hero');
+    expect(clipped[0]!.detail).toContain('20px');
+  });
+
+  it('flags overlapping text but not a parent and its child', () => {
+    const parent = box({ selector: 'h1', x: 20, y: 30, w: 300, h: 40 });
+    const r = page(facts({
+      boxes: [
+        box({ selector: 'nav a', x: 20, y: 20, w: 200, h: 30 }),
+        parent,
+        box({ selector: 'h1 > span', x: 20, y: 55, w: 100, h: 15, parent: parent.id }),
+      ],
+    }));
+    const overlaps = r.issues.filter((i) => i.kind === 'overlapping-text');
+    expect(overlaps).toHaveLength(1);
+    expect(overlaps[0]!.severity).toBe('warning');
+    expect(overlaps[0]!.selector).toContain('nav a');
+    expect(overlaps[0]!.selector).toContain('h1');
+  });
+
+  it('skips page-wide issue kinds outside the first batch, but still reports clipped text', () => {
+    const clipped = box({ selector: '.card', clipsY: true, scrollH: 140, clientH: 100 });
+    const r = analyzeVisualFacts({
+      mode: 'page', width: 1440, firstBatch: false,
+      facts: facts({
+        document: { paintedElements: 0, scrollHeight: 1000, scrollWidth: 1580, visibleTextChars: 0 },
+        brokenImages: [{ selector: 'img.logo', src: 'logo.png' }],
+        consoleErrors: ['Uncaught ReferenceError: slider is not defined'],
+        boxes: [
+          clipped,
+          box({ fontFamily: 'a' }), box({ fontFamily: 'b' }), box({ fontFamily: 'c' }), box({ fontFamily: 'd' }),
+        ],
+      }),
+    });
+    expect(kinds(r.issues)).not.toContain('blank-page');
+    expect(kinds(r.issues)).not.toContain('horizontal-overflow');
+    expect(kinds(r.issues)).not.toContain('broken-image');
+    expect(kinds(r.issues)).not.toContain('console-error');
+    expect(kinds(r.improvements)).not.toContain('too-many-fonts');
+    expect(kinds(r.issues)).toContain('clipped-text');
+  });
+
+  it('drops console noise from the data: URL load and keeps real errors as warnings', () => {
+    const r = page(facts({
+      consoleErrors: [
+        "Uncaught SecurityError: Failed to read the 'localStorage' property from 'Window'",
+        'Uncaught ReferenceError: slider is not defined',
+      ],
+    }));
+    const logs = r.issues.filter((i) => i.kind === 'console-error');
+    expect(logs).toHaveLength(1);
+    expect(logs[0]!.severity).toBe('warning');
+    expect(logs[0]!.detail).toContain('slider is not defined');
+  });
+});
+
+describe('analyzeVisualFacts improvements', () => {
+  it('suggests contrast fixes and skips text over images', () => {
+    const r = page(facts({
+      boxes: [
+        box({ selector: '.price', color: [160, 160, 160, 1] }),
+        box({ selector: '.hero h2', color: [160, 160, 160, 1], background: null, bgImageBehind: true }),
+        box({ selector: '.big', color: [140, 140, 140, 1], fontSize: 32 }),
+      ],
+    }));
+    const low = r.improvements.filter((i) => i.kind === 'low-contrast');
+    expect(low.map((i) => i.selector)).toEqual(['.price']);
+    expect(low[0]!.detail).toMatch(/2\.\d : 1/);
+    expect(low[0]!.severity).toBe('suggestion');
+  });
+
+  it('skips contrast for text fully inside a media rect, but not otherwise', () => {
+    const inside = box({ selector: '.hero h2', color: [160, 160, 160, 1], x: 100, y: 100, w: 200, h: 20 });
+    const r1 = page(facts({
+      boxes: [inside],
+      media: [{ x: 0, y: 0, w: 1440, h: 400, contains: [] }],
+    }));
+    expect(kinds(r1.improvements)).not.toContain('low-contrast');
+
+    const elsewhere = box({ selector: '.price', color: [160, 160, 160, 1], x: 100, y: 100, w: 200, h: 20 });
+    const r2 = page(facts({
+      boxes: [elsewhere],
+      media: [{ x: 900, y: 900, w: 100, h: 100, contains: [] }],
+    }));
+    expect(kinds(r2.improvements)).toContain('low-contrast');
+  });
+
+  it('does not suppress contrast when the covering media rect is an ancestor of the text (a card on a gradient)', () => {
+    const card = box({ selector: '.card p', color: [160, 160, 160, 1], background: [255, 255, 255, 1], x: 100, y: 100, w: 200, h: 20 });
+    const r = page(facts({
+      boxes: [card],
+      media: [{ x: 0, y: 0, w: 1440, h: 400, contains: [card.id] }],
+    }));
+    expect(kinds(r.improvements)).toContain('low-contrast');
+  });
+
+  it('suggests bigger text, shorter lines, fewer fonts', () => {
+    const long = 'x'.repeat(120);
+    const r = page(facts({
+      boxes: [
+        box({ selector: '.fine', fontSize: 10, text: 'Terms apply to every order placed' }),
+        box({ selector: '.story p', w: 1200, fontSize: 16, text: long }),
+        box({ fontFamily: 'a' }), box({ fontFamily: 'b' }), box({ fontFamily: 'c' }), box({ fontFamily: 'd' }),
+      ],
+    }));
+    expect(kinds(r.improvements)).toEqual(expect.arrayContaining(['tiny-text', 'long-lines', 'too-many-fonts']));
+    expect(r.improvements.find((i) => i.kind === 'long-lines')!.detail).toContain('150');
+  });
+
+  it('suggests sharper images and edge padding', () => {
+    const r = page(facts({
+      images: [{ selector: 'img.hero', naturalW: 400, naturalH: 300, drawnW: 1200, drawnH: 900 }],
+      boxes: [box({ selector: 'h1', x: 2 })],
+    }));
+    expect(kinds(r.improvements)).toEqual(expect.arrayContaining(['blurry-image', 'edge-crowding']));
+  });
+
+  it('measures edge-crowding against the text extent, not the padded box', () => {
+    const r1 = page(facts({
+      boxes: [box({ selector: '.banner', x: 0, w: 1440, textX: 520, textW: 400 })],
+    }));
+    expect(kinds(r1.improvements)).not.toContain('edge-crowding');
+
+    const r2 = page(facts({
+      boxes: [box({ selector: '.banner', x: 0, w: 1440, textX: 2, textW: 400 })],
+    }));
+    expect(kinds(r2.improvements)).toContain('edge-crowding');
+  });
+
+  it('measures long-lines against the text extent, not the padded box', () => {
+    const r = page(facts({
+      boxes: [box({ selector: '.story p', w: 1200, textW: 600, fontSize: 16, text: 'x'.repeat(120) })],
+    }));
+    expect(kinds(r.improvements)).not.toContain('long-lines');
+  });
+
+  it('merges identical repeated findings into one with a ×N count', () => {
+    const r = page(facts({
+      boxes: [
+        box({ selector: '.menu-card .price', color: [160, 160, 160, 1] }),
+        box({ selector: '.menu-card .price', color: [160, 160, 160, 1] }),
+        box({ selector: '.menu-card .price', color: [160, 160, 160, 1] }),
+      ],
+    }));
+    const low = r.improvements.filter((i) => i.kind === 'low-contrast');
+    expect(low).toHaveLength(1);
+    expect(low[0]!.detail.endsWith('(×3)')).toBe(true);
+  });
+
+  it('checks tap targets only at phone width', () => {
+    const f = facts({ targets: [{ selector: 'a.icon', w: 20, h: 20 }], viewport: { height: 1000, width: 390 } });
+    expect(kinds(page(f, 390).improvements)).toContain('small-tap-target');
+    expect(kinds(page({ ...f, viewport: { height: 1000, width: 1440 } }, 1440).improvements)).not.toContain('small-tap-target');
+  });
+
+  it('caps each kind at 5', () => {
+    const r = page(facts({ brokenImages: Array.from({ length: 12 }, (_, i) => ({ selector: `img.i${i}`, src: `${i}.png` })) }));
+    expect(r.issues.filter((i) => i.kind === 'broken-image')).toHaveLength(5);
+  });
+
+  it('returns nothing for a clean page', () => {
+    const r = page(facts({ boxes: [box()] }));
+    expect(r).toEqual({ issues: [], improvements: [] });
+  });
+});

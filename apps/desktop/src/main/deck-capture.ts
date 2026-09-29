@@ -9,6 +9,7 @@ import type { DesktopRenderSlidesInput, DesktopRenderSlidesResult } from "@open-
 
 import { waitForPrintableContent } from "./pdf-export.js";
 import { bgraBitmapHasPaint, FROZEN_MOTION_CSS } from "./static-capture.js";
+import { captureDeckForVisualCheck, capturePageForVisualCheck, recordConsoleError } from "./visual-check-capture.js";
 import { findRealTagEnd, findRealTagOffset, HTML_TAG_PATTERNS } from '@open-design/contracts/runtime/html-injection-points';
 
 // Re-exported so the long-standing import site (and its tests) keep working
@@ -256,6 +257,14 @@ export async function renderDeckSlides(
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event) => event.preventDefault());
 
+  // Visual check: remember error-level console output for the checklist.
+  const consoleErrors: string[] = [];
+  if (input.inspect) {
+    window.webContents.on("console-message", (details: unknown) => {
+      recordConsoleError(consoleErrors, details as { level?: number | string; message?: string });
+    });
+  }
+
   // Coarse per-phase timing so a slow export can be diagnosed from the desktop
   // log (load/fonts vs. render/encode) instead of guesswork. One line per export.
   const t0 = Date.now();
@@ -323,6 +332,22 @@ export async function renderDeckSlides(
     }
     const wantsDeck = shouldCaptureAsDeck(hasSlides, input.deck);
     if (!wantsDeck) {
+      if (input.inspect) {
+        return finish(
+          await capturePageForVisualCheck(
+            window,
+            input,
+            requestedPage,
+            {
+              nextFrames: () => nextFrames(window),
+              preparePage: () => preparePageForCapture(window),
+              scrollTo: (target) => scrollToCaptureTarget(window, target),
+              viewportBand: paginateViewportBand,
+            },
+            consoleErrors,
+          ),
+        );
+      }
       // Page mode: capture the original, unmodified document. `paginate` (set by
       // the PDF path) splits a long page into one image per viewport.
       const pageJpeg = shouldCapturePageAsJpeg(input.pageImageFormat, input.paginate);
@@ -384,6 +409,18 @@ export async function renderDeckSlides(
     }
     const dbg = deckDbgAttached ? deckDbg : null;
     try {
+      if (input.inspect) {
+        return finish(
+          await captureDeckForVisualCheck(
+            window,
+            count,
+            stage,
+            input,
+            { captureSlide: (i) => captureDeckSlide(window, dbg, i, stage) },
+            consoleErrors,
+          ),
+        );
+      }
       // Image export of a deck wants every slide stitched top-to-bottom into one
       // tall image (the "whole deck as one picture").
       if (input.stitch) {

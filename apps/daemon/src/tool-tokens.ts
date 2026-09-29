@@ -19,6 +19,7 @@ export const MEDIA_TASK_WAIT_TOOL_ENDPOINT = '/api/media/tasks/:id/wait';
 export const HYPERFRAMES_SCAFFOLD_TOOL_ENDPOINT = '/api/tools/media/hyperframes/scaffold';
 export const PROJECT_EXPORT_TOOL_ENDPOINT = '/api/projects/:id/export/:format';
 export const DELIVERABLE_SYNTAX_CHECK_TOOL_ENDPOINT = '/api/tools/deliverable-syntax/check';
+export const VISUAL_CHECK_TOOL_ENDPOINT = '/api/tools/visual-check';
 
 export const CHAT_TOOL_ENDPOINTS = [
   '/api/tools/live-artifacts/create',
@@ -31,6 +32,7 @@ export const CHAT_TOOL_ENDPOINTS = [
   '/api/tools/media/generate',
   HYPERFRAMES_SCAFFOLD_TOOL_ENDPOINT,
   DELIVERABLE_SYNTAX_CHECK_TOOL_ENDPOINT,
+  VISUAL_CHECK_TOOL_ENDPOINT,
   MEDIA_TASK_WAIT_TOOL_ENDPOINT,
   PROJECT_EXPORT_TOOL_ENDPOINT,
   '/api/tools/library/search',
@@ -48,6 +50,7 @@ export const CHAT_TOOL_OPERATIONS = [
   'media:generate',
   'media:scaffold',
   'deliverable-syntax:check',
+  'visual-check:run',
   'project:export',
   'library:search',
   'library:apply',

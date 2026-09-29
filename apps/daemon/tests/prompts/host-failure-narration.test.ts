@@ -193,6 +193,13 @@ const REGISTRY: readonly Entry[] = [
     why: 'W81 fix, slim core half of the same change.',
   },
   {
+    file: 'packages/contracts/src/prompts/visual-check.ts',
+    match: 'If the command fails or is unavailable, finish with your static check',
+    chars: [151],
+    verdict: 'suppression-rule',
+    why: 'Agent Eyes visual-check directive. Tells the model to keep a failed or unavailable screenshot check out of the reply.',
+  },
+  {
     file: 'apps/daemon/src/prompts/media-contract.ts',
     match: "report it through the failure's",
     chars: [77],

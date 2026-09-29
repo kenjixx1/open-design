@@ -125,7 +125,10 @@ interface OdNextInitialPromptBundleServiceDeps {
   createAgentRuntimeToolPrompt: (
     daemonUrl: string,
     toolTokenGrant: { token: string } | null,
+    options?: { visualCheck?: boolean },
   ) => string;
+  /** Live desktop can run `od tools screenshot`. Absent means false. */
+  resolveVisualCheckAvailable?: () => Promise<boolean>;
   composeDaemonSystemPrompt: (
     input: Record<string, unknown>,
   ) => Promise<DaemonSystemPromptResult>;
@@ -358,9 +361,14 @@ export function createOdNextInitialPromptBundleService(
       path.join(deps.runtimeDataDir, 'od-next-task-inputs'),
     );
     const runContextPrompt = renderRunContextPrompt(context, project?.metadata);
+    const hasToolToken = Boolean(projectRoot && projectId);
+    const visualCheck = hasToolToken && deps.resolveVisualCheckAvailable
+      ? await deps.resolveVisualCheckAvailable()
+      : false;
     const runtimeToolPrompt = deps.createAgentRuntimeToolPrompt(
       deps.daemonUrl,
-      projectRoot && projectId ? { token: 'available' } : null,
+      hasToolToken ? { token: 'available' } : null,
+      { visualCheck },
     );
     const researchCommandContract = resolveResearchCommandContract(research, userPrompt);
     const formAnswerMatch = FORM_ANSWERS_HEADER_RE.exec(

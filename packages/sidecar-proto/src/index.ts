@@ -190,6 +190,8 @@ export type DesktopStatusSnapshot = {
   capabilities?: {
     /** Hidden Electron Chromium can deterministically capture authored frame timelines. */
     frameRenderer?: boolean;
+    /** Hidden Electron Chromium can capture screen tiles and collect layout facts for `od tools screenshot`. */
+    visualCheck?: boolean;
   };
   pid?: number | null;
   state: DesktopRuntimeState;
@@ -253,6 +255,76 @@ export type DesktopExportPdfResult = {
   path?: string;
 };
 
+/** Most page tiles one visual-check render returns. */
+export const VISUAL_CHECK_MAX_SCREENS = 6;
+/** Most deck slides one visual-check render returns. */
+export const VISUAL_CHECK_MAX_SLIDES = 12;
+
+/** 0-based batch of screens (page mode) or slides (deck mode). */
+export type DesktopRenderRange = { count: number; start: number };
+
+/** sRGB 0-255 channels plus alpha 0-1. */
+export type DesktopVisualColor = [number, number, number, number];
+
+/** One visible element that carries text, or a clipping container holding text. */
+export type DesktopVisualBox = {
+  animatedChildren: boolean;
+  background: DesktopVisualColor | null;
+  bgImageBehind: boolean;
+  clientH: number;
+  clientW: number;
+  clipsX: boolean;
+  clipsY: boolean;
+  color: DesktopVisualColor | null;
+  ellipsis: boolean;
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: number;
+  h: number;
+  id: number;
+  insideScroller: boolean;
+  // True when the element has its own non-empty text nodes; false for a
+  // clipping container recorded only for clipped-text.
+  ownText: boolean;
+  parent: number | null;
+  scrollH: number;
+  scrollW: number;
+  selector: string;
+  slide: number | null;
+  text: string;
+  // Left edge and width of the element's own text in CSS px; padding excluded.
+  textX: number;
+  textW: number;
+  w: number;
+  x: number;
+  y: number;
+};
+
+/** What the in-page collector returns for one document state. */
+export type PageVisualFacts = {
+  boxes: DesktopVisualBox[];
+  brokenImages: Array<{ selector: string; src: string }>;
+  document: { paintedElements: number; scrollHeight: number; scrollWidth: number; visibleTextChars: number };
+  images: Array<{ drawnH: number; drawnW: number; naturalH: number; naturalW: number; selector: string }>;
+  // Visible IMG/VIDEO/CANVAS/PICTURE/SVG and background-image elements of at least 2500 px².
+  media: Array<{
+    h: number;
+    w: number;
+    x: number;
+    y: number;
+    // Box ids inside this element; such boxes use their own backgroundOf() result instead.
+    contains: number[];
+  }>;
+  targets: Array<{ h: number; selector: string; w: number }>;
+  viewport: { height: number; width: number };
+};
+
+/** Layout facts for a whole visual-check render (page, or a batch of slides). */
+export type DesktopVisualFacts = PageVisualFacts & {
+  consoleErrors: string[];
+  slides?: Array<{ h: number; index: number; w: number; x: number; y: number }>;
+};
+
 // Renders an HTML deck (every `<section class="slide">`) to one pixel-perfect
 // PNG per slide using the desktop's Electron Chromium, so screenshot-based
 // PPTX/PDF export reuses the already-bundled browser instead of shipping a
@@ -289,6 +361,11 @@ export type DesktopRenderSlidesInput = {
   // fall back to renderer defaults.
   width?: number;
   height?: number;
+  // Visual check: capture screen tiles (page) or a batch of slides (deck) and
+  // collect layout facts. Requires `outputDir`; excludes index/stitch/editable/paginate.
+  inspect?: boolean;
+  // Visual check only: which screens/slides to capture. Defaults to the first batch.
+  range?: DesktopRenderRange;
   // When set, the renderer writes each rendered image to a file inside this
   // directory and returns the file paths in `slideFiles` instead of base64
   // data URLs in `slides`. The daemon (which owns the data root) creates and
@@ -321,6 +398,10 @@ export type DesktopRenderSlidesResult = {
   pptxFile?: string;
   slideFiles?: string[];
   slides?: string[];
+  // Visual check only: which screens/slides the files are, and how many exist.
+  indices?: number[];
+  total?: number;
+  visualFacts?: DesktopVisualFacts;
   width?: number;
 };
 
@@ -928,7 +1009,7 @@ function normalizeDesktopExportPdfInput(input: unknown): DesktopExportPdfInput {
 
 function normalizeDesktopRenderSlidesInput(input: unknown): DesktopRenderSlidesInput {
   const value = assertObject(input, "desktop render slides input");
-  assertKnownKeys(value, ["baseHref", "deck", "editable", "height", "html", "index", "outputDir", "pageImageFormat", "stitch", "paginate", "width"], "desktop render slides input");
+  assertKnownKeys(value, ["baseHref", "deck", "editable", "height", "html", "index", "inspect", "outputDir", "pageImageFormat", "range", "stitch", "paginate", "width"], "desktop render slides input");
   if (value.deck != null && typeof value.deck !== "boolean") {
     throw new Error("desktop render slides deck must be a boolean");
   }
@@ -956,12 +1037,38 @@ function normalizeDesktopRenderSlidesInput(input: unknown): DesktopRenderSlidesI
       throw new Error("desktop render slides outputDir must be an absolute path");
     }
   }
+  if (value.inspect != null && typeof value.inspect !== "boolean") {
+    throw new Error("desktop render slides inspect must be a boolean");
+  }
+  let range: DesktopRenderRange | undefined;
+  if (value.range != null) {
+    if (value.inspect !== true) {
+      throw new Error("desktop render slides range requires inspect");
+    }
+    const raw = assertObject(value.range, "desktop render slides range");
+    assertKnownKeys(raw, ["count", "start"], "desktop render slides range");
+    if (typeof raw.start !== "number" || !Number.isInteger(raw.start) || raw.start < 0) {
+      throw new Error("desktop render slides range.start must be a non-negative integer");
+    }
+    if (typeof raw.count !== "number" || !Number.isInteger(raw.count) || raw.count < 1 || raw.count > VISUAL_CHECK_MAX_SLIDES) {
+      throw new Error(`desktop render slides range.count must be an integer from 1 to ${VISUAL_CHECK_MAX_SLIDES}`);
+    }
+    range = { start: raw.start, count: raw.count };
+  }
+  if (value.inspect === true) {
+    for (const key of ["index", "stitch", "editable", "paginate"] as const) {
+      if (value[key] != null) throw new Error(`desktop render slides inspect cannot be combined with ${key}`);
+    }
+    if (value.outputDir == null) throw new Error("desktop render slides inspect requires outputDir");
+  }
   return {
     ...(value.baseHref == null ? {} : { baseHref: normalizeNonEmptyString(value.baseHref, "desktop render slides baseHref") }),
     ...(value.deck == null ? {} : { deck: value.deck }),
     ...(value.editable == null ? {} : { editable: value.editable }),
     html: normalizeNonEmptyString(value.html, "desktop render slides html"),
     ...(value.index == null ? {} : { index: value.index }),
+    ...(value.inspect == null ? {} : { inspect: value.inspect }),
+    ...(range == null ? {} : { range }),
     ...(value.outputDir == null ? {} : { outputDir: normalizeNonEmptyString(value.outputDir, "desktop render slides outputDir") }),
     ...(value.pageImageFormat == null ? {} : { pageImageFormat: value.pageImageFormat }),
     ...(value.stitch == null ? {} : { stitch: value.stitch }),

@@ -263,6 +263,7 @@ After completing the design and before delivery, perform one full check in the o
    - Confirm that intrinsic aspect ratios are preserved, content-bearing images show their full frame, decorative crops are intentional, and any required source attribution or licensing note is retained.
 
 5. **Inspect the rendered result only when necessary:**
+   - If the runtime tool environment has a "Visual check" section, follow it instead of this step.
    - Render only when static code review cannot determine whether the layout overflows, elements collide, or similar visual issues are present.
    - Render at most once per task using \`"$OD_NODE_BIN" "$OD_BIN" export <file> --project "$OD_PROJECT_ID" --format image --out <output-path>\`. Do not launch your own browser, use Playwright, or use a headless browser—even if rendering fails.
    - Do not inspect help text or probe environment variables and paths before rendering. If the command fails, you may run at most one diagnostic. Retry only after correcting the cause.
